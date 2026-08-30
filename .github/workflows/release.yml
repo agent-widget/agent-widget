@@ -1,0 +1,99 @@
+name: Release firmware
+
+# 打 tag v*.*.*（如 v2.0.0）→ 自动构建固件 → 发布到 GitHub Releases → 更新 manifest.json
+# 也可手动触发（需要 tag 已存在）。
+#
+# 注意：当前为 Arduino PoC 模拟期 pipeline（Wokwi 云构建 API，零依赖）。
+# 生产 AW-006 将替换 build 步骤为 ESP-IDF（idf.py build），其余发布逻辑不变。
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Firmware version, e.g. 2.0.0 (tag v<version> must exist on main)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version and tag
+        id: ver
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            TAG="${GITHUB_REF_NAME}"
+          else
+            TAG="v${{ github.event.inputs.version }}"
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved: tag=$TAG version=$VERSION"
+
+      - name: Build firmware (Wokwi cloud build API)
+        run: |
+          cd ota-sim
+          python3 build_gh.py "${{ steps.ver.outputs.version }}" latest \
+            ../dist/firmware-v${{ steps.ver.outputs.version }}.bin
+
+      - name: Verify artifact
+        run: |
+          test -f dist/firmware-v${{ steps.ver.outputs.version }}.bin
+          ls -la dist/
+          SIZE=$(stat -c%s dist/firmware-v${{ steps.ver.outputs.version }}.bin)
+          echo "size=$SIZE" >> "$GITHUB_OUTPUT"
+          echo "Artifact size: $SIZE"
+
+      - name: Create GitHub release and upload asset
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          ASSET="firmware-v${{ steps.ver.outputs.version }}.bin"
+          if gh release view "${{ steps.ver.outputs.tag }}" >/dev/null 2>&1; then
+            echo "release exists, uploading asset"
+            gh release upload "${{ steps.ver.outputs.tag }}" "$ASSET" --clobber
+          else
+            gh release create "${{ steps.ver.outputs.tag }}" "$ASSET" \
+              --title "${{ steps.ver.outputs.tag }}" \
+              --notes "Firmware ${{ steps.ver.outputs.version }} — auto-built by GitHub Actions (Arduino PoC build via Wokwi cloud build API)." \
+              --target main
+          fi
+          echo "release_url=https://github.com/agent-widget/agent-widget/releases/tag/${{ steps.ver.outputs.tag }}" >> "$GITHUB_OUTPUT"
+
+      - name: Update manifest.json (fallback channel)
+        run: |
+          SIZE=$(stat -c%s dist/firmware-v${{ steps.ver.outputs.version }}.bin)
+          URL="https://github.com/agent-widget/agent-widget/releases/download/${{ steps.ver.outputs.tag }}/firmware-v${{ steps.ver.outputs.version }}.bin"
+          python3 ota-sim/update_manifest.py "${{ steps.ver.outputs.version }}" "$URL" "$SIZE" firmware/manifest.json
+          # commit back to main (workflow runs on tag → detached HEAD; re-checkout main)
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+          git add firmware/manifest.json
+          if git diff --cached --quiet; then
+            echo "manifest unchanged"
+          else
+            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "chore(ota): manifest add v${{ steps.ver.outputs.version }} [skip ci]"
+            git push origin main
+            echo "manifest committed"
+          fi
+
+      - name: Summary
+        run: |
+          echo "=== RELEASE READY ==="
+          echo "tag:      ${{ steps.ver.outputs.tag }}"
+          echo "release:  ${{ steps.release.outputs.release_url }}"
+          echo "device OTA: 设备启动后将自动从 GitHub Releases API 发现此版本并升级"

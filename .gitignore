@@ -1,0 +1,54 @@
+# Firmware and embedded build outputs
+firmware/build/
+firmware/sdkconfig
+firmware/sdkconfig.old
+firmware/managed_components/
+firmware/dependencies.lock
+*.bin
+*.elf
+*.map
+*.uf2
+# PoC 模拟期发布通道：固件二进制随仓库分发（raw.githubusercontent 直链）
+# 生产 AW-006 迁移到 GitHub Releases 后删除此例外（固件不再入 git）
+!firmware/releases/*.bin
+
+# PlatformIO and simulator outputs
+.pio/
+simulator/build/
+simulator/bin/
+sim/**/build/
+sim/**/bin/
+
+# Historical local proof-of-concept sources (not production firmware)
+ota-verify/
+sim/
+
+# Local experiments and captured device evidence
+experiments/local/
+experiments/output/
+logs/
+*.log
+*.pcap
+*.mp4
+*.mov
+
+# Secrets and machine-local configuration
+.env
+.env.*
+!.env.example
+secrets/
+keys/
+certs/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Tool and operating-system state
+.DS_Store
+.vscode/
+.idea/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+node_modules/

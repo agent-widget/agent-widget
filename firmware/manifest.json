@@ -1,0 +1,17 @@
+{
+  "repo": "agent-widget/agent-widget",
+  "channel": "raw.githubusercontent.com (PoC 过渡通道)",
+  "notes": "模拟验证期发布清单。生产 AW-006 将改为 GitHub Releases API（CI 上传，二进制不入 git）。",
+  "releases": [
+    {
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/agent-widget/agent-widget/main/firmware/releases/v1.0.0.bin",
+      "size": 1035552
+    },
+    {
+      "version": "2.0.0",
+      "url": "https://raw.githubusercontent.com/agent-widget/agent-widget/main/firmware/releases/v2.0.0.bin",
+      "size": 1035552
+    }
+  ]
+}

@@ -131,7 +131,8 @@ Canary 分组：`hash(deviceId) % 5` → `canary-0..canary-4`。设备订阅自�
 5. 离线设备：broker 触发 LWT；定向公告被持久会话排队，重连后安装
    （用 SIGSTOP/SIGCONT 注入断连）
 6. retained 广播：迟到加入的设备安装已广播版本并渲染 retained 状态；
-   收不到未 retained 的 canary/分组/定向消息
+   全新会话下收不到未 retained 的 canary/分组/定向消息（自身订阅组的
+   消息可能经持久会话合法补投）
 7. 召回防护：旧版本公告被**每台设备**拒绝（防降级）、越过 `min_version`
    墙的升级被**每台设备**拒绝（防回退底线）
 8. 回滚演练：自检失败的设备回滚并保持原固件版本

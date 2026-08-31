@@ -138,7 +138,9 @@ generic `ota/group/+` access — cohort membership is enumerated per device.
 5. offline device: broker fires LWT; a targeted announce is queued by the
    persistent session and installed on reconnect (SIGSTOP/SIGCONT injection)
 6. retained broadcast: a late-joining device installs the announced version
-   and renders the retained statuses; it misses non-retained canary/group/targeted
+   and renders the retained statuses; with a fresh session it misses
+   non-retained canary/group/targeted (its own subscribed cohorts may queue
+   legitimately via a persistent session)
 7. recall guards: an older announce is rejected by EVERY device
    (anti-downgrade), an upgrade above a `min_version` wall is rejected by
    EVERY device (anti-rollback floor)

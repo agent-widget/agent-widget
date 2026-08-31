@@ -11,7 +11,20 @@
 | `build_arduino.sh` | arduino-cli local build (esp32 core 3.x + custom dual-slot OTA partition table; `./build_arduino.sh <ver> [out_dir]`) |
 | `custom_partitions.csv` | OTA partition table (nvs/otadata/app0/app1/spiffs, matching the Wokwi simulator) |
 | `build_gh.py` | (Fallback) builds via the Wokwi cloud build API, for simulator verification |
-| `update_manifest.py` | Updates `firmware/manifest.json` (`python3 update_manifest.py <ver> <url> <size> <path>`) |
+| `update_manifest.py` | Updates `firmware/manifest.json` (`python3 update_manifest.py <ver> <url> <size> <path> [sha256] [signature_b64]`) |
+| `gen_keys.sh` | AW-006: generates (or reuses) the dev RSA-2048 signing keypair under `keys/` (gitignored) and exports the public key as `ota_pubkey.h` (committed, embedded into the sketch) |
+| `sign_firmware.sh` | AW-006: computes sha256 + RSA-PKCS1v1.5-SHA256 signature for a firmware binary; used both locally and by the release workflow |
+| `ota_pubkey.h` | AW-006: generated public-key header (N/E raw bytes), `#include`d by `sketch_gh_ota.ino` |
+
+## AW-006: integrity + signing + rollback
+
+`sketch_gh_ota.ino` now verifies sha256 and an RSA-2048 signature (over the sha256 digest) before installing, gates the install behind a UI/button/serial confirmation, and relies on `arduino-esp32`'s built-in app-rollback hook (`verifyOta()`) for a self-test-triggered rollback. See `docs/ota/10-aw006-integrity-signing-rollback-e2e.md` for the full design + destructive-test results, and `docs.local/operations/ota-e2e-claude-report.md` for the execution log (local-only).
+
+```bash
+./gen_keys.sh                              # one-time: dev keypair + ota_pubkey.h
+./sign_firmware.sh dist/firmware-vX.Y.Z.bin  # prints sha256=... signature=...
+python3 update_manifest.py X.Y.Z <url> <size> ../firmware/manifest.json <sha256> <signature>
+```
 
 ## Release flow (GitHub Actions)
 

@@ -73,3 +73,17 @@ scripts/claude-login.sh
 
 # Local PoC runs and captures
 wokwi-run/
+
+# ESP-IDF + QEMU local toolchain (large, never committed)
+esp-idf/
+esp-tools/
+qemu-build/
+.xdg/
+.codex-home/
+
+# AW-006: firmware build/test outputs and generated QEMU test-only fixtures
+# (docs.local/ below already covers evidence/work dirs; listed here too since
+# it's above the docs.local/ line for readability of the AW-006-specific set)
+build/
+firmware/components/trust_store/include/qemu_test_ca.h
+firmware/test/qemu/fixtures/pki/

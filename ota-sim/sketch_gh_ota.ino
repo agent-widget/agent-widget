@@ -678,14 +678,16 @@ void loop() {
   }
   g_lastButton = btn;
 
-  // 周期检查（非阻塞）
-  if (g_state == ST_IDLE && (millis() - g_lastCheckMs) >= CHECK_INTERVAL_MS) {
+  // 周期检查（非阻塞）；ST_FAILED 也参与周期重试——被拒绝的升级不应把设备锁死，
+  // 下一轮定时检查应该能再次发现（同一个坏版本还会再被拒绝一次；一旦发布方
+  // 修好 manifest，设备下次检查就能升级成功）。
+  if ((g_state == ST_IDLE || g_state == ST_FAILED) && (millis() - g_lastCheckMs) >= CHECK_INTERVAL_MS) {
     g_lastCheckMs = millis();
     Serial.println("[OTA] Periodic check triggered");
     begin_check();
   }
 
-  if (g_state == ST_IDLE || g_state == ST_AVAILABLE) {
+  if (g_state == ST_IDLE || g_state == ST_AVAILABLE || g_state == ST_FAILED) {
     static unsigned long lastBeat = 0;
     if (millis() - lastBeat > 5000) {
       lastBeat = millis();

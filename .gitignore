@@ -50,6 +50,7 @@ certs/
 
 # Tool and operating-system state
 .DS_Store
+._.DS_Store
 .vscode/
 .idea/
 __pycache__/
@@ -59,3 +60,16 @@ node_modules/
 
 # Local tooling (arduino-cli + esp32 core, ~1GB)
 arduino-tool/
+
+# Local-only internal communication and project management (never pushed)
+docs.local/
+AGENTS.md
+CLAUDE.md
+HERMES.md
+session/
+tasks.json
+progress.jsonl
+scripts/claude-login.sh
+
+# Local PoC runs and captures
+wokwi-run/

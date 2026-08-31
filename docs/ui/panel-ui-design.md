@@ -1,5 +1,5 @@
 ---
-title: "Panel UI 设计：轮播 + 垂直滚动详情 + 状态指引器"
+title: "Panel UI Design: Carousel + Vertically Scrolling Details + Status Indicator"
 date: 2026-08-24
 status: proposed
 tags:
@@ -9,266 +9,268 @@ tags:
   - agent-status
   - ota
   - design
-description: "ESP32-S3-Touch-LCD-3.5B（320×480竖屏/LVGL）的 Panel 轮播界面设计：一 panel 一 agent、垂直滚动展开详情、状态色指引器、OTA/固件升级界面的完整交互与状态机。"
+description: "Panel carousel UI design for the ESP32-S3-Touch-LCD-3.5B (320x480 portrait / LVGL): one Panel per agent, vertically scrolling details, status-colored indicator, and the complete interaction and state machine for the OTA / firmware-update UI."
 ---
+> Chinese version: [panel-ui-design.zh-CN.md](./panel-ui-design.zh-CN.md)
 
-# Panel UI 设计：轮播 + 垂直滚动详情 + 状态指引器
 
-> 对应任务：`AW-005`（Specify Panel UI and establish real-device responsiveness measurements）
-> 视觉来源：ChatGPT 生成的四个方向（A 深色信息仪表盘 / B 极简一眼式 / C 卡片式轻量 / D 数据与运营视图）——**仅作参考，非最终设计**。本设计以这些方向为素材重新组织。
-> 硬件事实来源：`docs/hardware/board-spec-constraints.md`（权威）；术语沿用 `docs/architecture/00-repository-organization-design.md`。
-> OTA 事实来源：`docs/ota/02-ota-design-esp-https-rollback.md`、`docs/ota/04-ota-evaluation-conclusion.md`。
+# Panel UI Design: Carousel + Vertically Scrolling Details + Status Indicator
 
----
-
-## 0. 设计定位
-
-- 设备：Waveshare ESP32-S3-Touch-LCD-3.5B，**320×480 竖屏**（原生 ROT 0），RGB565（16bpp），AXS15231B（QSPI 显示 + I2C 0x3B 触摸），8MB PSRAM，16MB Flash。
-- GUI 框架：**LVGL**。版本在 AW-005 锁定（官方 demo v8.4 / v9.2.2；本仓 PC simulator 为 v9.x —— 二选一，禁止混用 API）。
-- 视觉底座：选定 **方案A（深色信息仪表盘）**——高信息密度、强层级、深色低干扰，最衬“状态词 + 进度/用量”的 agent 信息。方案C（卡片式）与方案B（极简）作为交互与留白参考；方案D（数据运营）仅作为详情页图表的取舍依据。
-- 术语固定：
-  - **Panel**：整个横向滑动的一页屏幕。
-  - **AgentPanel**：展示一个 agent 会话状态的 Panel。
-  - **UpdatePanel**：OTA / 固件升级的常驻系统 Panel（P1）。
-  - **SettingsPanel**：固定存在的设置 Panel（永远最后一张）。
-  - **AgentCard**：Panel 内展示一个 agent 的状态卡。
-  - **PanelIndicator**：屏幕底部的可点击位置点；颜色/形状同时表达对应 Panel 的聚合状态。
+> Corresponding task: `AW-005` (Specify Panel UI and establish real-device responsiveness measurements)
+> Visual sources: four directions generated with ChatGPT (A dark information dashboard / B minimalist glanceable / C lightweight cards / D data-and-operations view) — **reference only, not the final design**. This design reworks those directions as raw material.
+> Hardware facts: `docs/hardware/board-spec-constraints.md` (authoritative); terminology follows `docs/architecture/00-repository-organization-design.md`.
+> OTA facts: `docs/ota/02-ota-design-esp-https-rollback.md`, `docs/ota/04-ota-evaluation-conclusion.md`.
 
 ---
 
-## 1. Panel 集合与循环轮播
+## 0. Design Positioning
 
-### 1.1 结构
+- Device: Waveshare ESP32-S3-Touch-LCD-3.5B, **320×480 portrait** (native ROT 0), RGB565 (16bpp), AXS15231B (QSPI display + I2C 0x3B touch), 8MB PSRAM, 16MB Flash.
+- GUI framework: **LVGL**. The version is locked in AW-005 (official demo v8.4 / v9.2.2; this repo's PC simulator is v9.x — pick one; mixing APIs is forbidden).
+- Visual base: **Option A (dark information dashboard)** — high information density, strong hierarchy, dark and low-distraction, the best fit for agent information of "status word + progress/usage". Option C (cards) and Option B (minimalist) serve as references for interaction and whitespace; Option D (data operations) informs only the trade-offs for the detail-page charts.
+- Fixed terminology:
+  - **Panel**: one full screen page that slides horizontally.
+  - **AgentPanel**: a Panel that shows one agent session's status.
+  - **UpdatePanel**: the resident system Panel for OTA / firmware updates (P1).
+  - **SettingsPanel**: the permanently present settings Panel (always the last one).
+  - **AgentCard**: the status card inside a Panel that shows one agent.
+  - **PanelIndicator**: the clickable position dots at the bottom of the screen; their color/shape simultaneously express the aggregated status of the corresponding Panel.
+
+---
+
+## 1. Panel Set and Circular Carousel
+
+### 1.1 Structure
 
 ```text
 [AgentPanel₁ … AgentPanelₙ] → [UpdatePanel] → [SettingsPanel]
 ```
 
-- **横向轮播**：一屏一个 Panel，左右滑动，**无限循环**（首尾镜像副本实现无缝、无跳变）。
-- **动态集合**：`n` = 当前活跃 agent 会话数（可为 0）。
-  - `AgentPanel₁ … AgentPanelₙ`：动态生成，每个对应一个 agent 会话。
-  - `UpdatePanel`：**常驻**系统 Panel（OTA 是 P1，任何设备都必须可测更新）。始终存在，位于 agent 面板之后、Settings 之前。
-  - `SettingsPanel`：**固定为最后一张**，永远存在。
-- 空态：无活跃 agent 时，集合为 `[UpdatePanel, SettingsPanel]`，并显示空态页（见 §9）。
-- 松手**吸附**：手指拖拽用原生 scroll 行为跟手，不加额外跟手动画；松手后自动对齐最近的 Panel。
+- **Horizontal carousel**: one Panel per screen, swipe left/right, **infinite loop** (mirrored copies at the head and tail make the wrap seamless and jump-free).
+- **Dynamic set**: `n` = the current number of active agent sessions (may be 0).
+  - `AgentPanel₁ … AgentPanelₙ`: dynamically generated, one per agent session.
+  - `UpdatePanel`: a **resident** system Panel (OTA is P1; every device must be able to test updates). Always present, after the agent Panels and before Settings.
+  - `SettingsPanel`: **fixed as the last one**, always present.
+- Empty state: with no active agents the set is `[UpdatePanel, SettingsPanel]`, and an empty-state page is shown (see §9).
+- **Snap on release**: finger dragging uses native scroll behavior that tracks the finger, with no extra tracking animations; on release, the nearest Panel aligns automatically.
 
-> 备选（未采用，可切换）：OTA 不单独占 panel，只作为 SettingsPanel 顶部的“系统更新区 + 全屏覆盖层”。本设计采用独立 `UpdatePanel`，理由：开发期 OTA 状态最易一眼看到，且与“每 panel 上下滚动展开详情”的交互模式一致。
+> Alternative (not adopted; switchable): OTA does not get its own panel; it lives only as a "system update area + full-screen overlay" at the top of the SettingsPanel. This design adopts a dedicated `UpdatePanel` because OTA status is the easiest to see at a glance during development, and it stays consistent with the "scroll vertically within each Panel to expand details" interaction model.
 
-### 1.2 数据驱动
+### 1.2 Data-Driven
 
-- 会话增删 → `rebuild_panels()`：重建轮播面板 + 指引器点数，保持吸附与循环。
-- 动态卡片数：预留重建接口；增删时不整屏重建，只增删对应 Panel。
-- 每个 AgentPanel 组合 **1–2 张 AgentCard**（架构文档口径）；本设计默认**一 panel 一 agent**，故一 panel 一张 AgentCard，展开态承载该 agent 的更多信息（见 §2）。
+- Sessions added/removed → `rebuild_panels()`: rebuild the carousel panels + the number of indicator dots, preserving snapping and looping.
+- Dynamic card count: reserve a rebuild interface; additions/removals do not rebuild the whole screen, only the affected Panels are added/removed.
+- Each AgentPanel combines **1–2 AgentCards** (per the architecture document); this design defaults to **one Panel per agent**, so one Panel holds one AgentCard, and the expanded state carries more of that agent's information (see §2).
 
 ---
 
-## 2. 单 Panel 的信息分层（设计核心）
+## 2. Information Layering Within a Panel (Design Core)
 
-一个 AgentPanel 内做**折叠 / 展开**两级，靠**垂直滚动**切换：
+An AgentPanel has **collapsed / expanded** two levels, switched by **vertical scrolling**:
 
-| 层级 | 内容 | 触达方式 |
+| Level | Content | How to reach |
 |---|---|---|
-| **折叠态（默认）** | agent 名 · 状态色+图标 · 当前任务一行 · 关键指标（token 进度条 / %） | 进入即见 |
-| **展开态** | 活动时间线、token 用量细分（输入/输出）、已用时长、context %、费用、迷你趋势/小柱状 | 垂直上滑 |
+| **Collapsed (default)** | agent name · status color + icon · current task in one line · key metrics (token progress bar / %) | visible on entry |
+| **Expanded** | activity timeline, token usage breakdown (input/output), elapsed time, context %, cost, mini trend / small bars | swipe up |
 
-- **折叠态信息一屏容纳，不滚动。**
-- **展开态是滚动容器**：只加载“更多”区块；信息不足一屏时禁止滚动出现空白。
-- **默认规则**：进入 / 切回某个 Panel 时**回到折叠态**（确定性、可预期）；用户点按展开后才进入展开态。任何 Panel（含 Update、Settings）都遵循此默认。
+- **The collapsed state fits on one screen; no scrolling.**
+- **The expanded state is a scrolling container**: it only loads "more" blocks; when content does not fill a screen, disable scrolling to avoid blank space.
+- **Default rule**: entering / returning to a Panel **resets to the collapsed state** (deterministic, predictable); only a tap on expand enters the expanded state. Every Panel (including Update and Settings) follows this default.
 
-同样规则适用于 `UpdatePanel` 与 `SettingsPanel`：默认显示核心状态，可垂直滚动看更多。
+The same rule applies to `UpdatePanel` and `SettingsPanel`: core status by default, scroll vertically for more.
 
 ---
 
-## 3. 手势冲突消解（关键）
+## 3. Resolving Gesture Conflicts (Critical)
 
-水平轮播与垂直滚动在同一屏，靠 **方向锁定** 消解：
+The horizontal carousel and vertical scrolling share the same screen; **direction locking** resolves the conflict:
 
-| 手势 | 动作 | LVGL 实现 |
+| Gesture | Action | LVGL implementation |
 |---|---|---|
-| 水平滑动 | 切换 Panel（外层 carousel，HOR lock） | 外层横向 scroll 容器 |
-| 垂直滑动 | 展开/回缩 Panel 内详情（内层 scroll，VER lock） | 内层纵向 scroll 容器 |
-| 点按指引器圆点 | 跳转到对应 Panel | dot 点击事件 |
-| 点按卡片元素 | （可选）展开详情 / 执行动作 | 卡片事件回调 |
+| Horizontal swipe | Switch Panel (outer carousel, HOR lock) | outer horizontal scroll container |
+| Vertical swipe | Expand/collapse the details inside the Panel (inner scroll, VER lock) | inner vertical scroll container |
+| Tap an indicator dot | Jump to the corresponding Panel | dot tap event |
+| Tap a card element | (optional) expand details / run an action | card event callback |
 
-- 用 `LV_OBJ_FLAG_SCROLL_ONE` / `scroll_dir` 让外层只认横滑、内层只认纵滑，保证不误触。
-- 触摸：AXS15231B 一体触摸（I2C 0x3B，最多 2 点，ROT 0 直接映射 320×480，无 swap/mirror）。
-
----
-
-## 4. PanelIndicator（底部指引器）— 双语义
-
-- **N 个圆点 = N 个 Panel 的位置。**
-- **圆点颜色 = 该 Panel 对应 agent 的聚合状态**（或 Update/Settings 的系统状态）。
-- 当前 Panel 的圆点：**放大 + 描边/高亮**；其余灰暗小点。
-- 圆点本身用状态色区分（**无文字**）；“远看一眼”即知每个 agent / 系统在忙/在等/出错/完成。
-- 空态时只剩系统点（Update + Settings）。
-- 指引器区域需预留底部安全边距，避免触摸命中与内容区相互干扰。
+- Use `LV_OBJ_FLAG_SCROLL_ONE` / `scroll_dir` so the outer layer only accepts horizontal swipes and the inner layer only vertical ones, preventing accidental triggers.
+- Touch: AXS15231B integrated touch (I2C 0x3B, up to 2 points, ROT 0 maps directly to 320×480, no swap/mirror).
 
 ---
 
-## 5. 状态 → 颜色 / 图标 / 文案映射
+## 4. PanelIndicator (Bottom Indicator) — Dual Semantics
 
-> 状态码来自 `AgentStatus` 契约。界面显示**状态色 + 图标 + 双语文案键**，不通篇英文。此表同时驱动指引器颜色、卡片状态徽标、详情页横幅、更新状态。
+- **N dots = the positions of N Panels.**
+- **Dot color = the aggregated status of that Panel's agent** (or the system status of Update/Settings).
+- The current Panel's dot: **enlarged + outlined/highlighted**; the rest are small, dim dots.
+- Dots themselves differ by status color (**no text**); one glance tells you whether each agent/system is busy, waiting, failing, or done.
+- In the empty state only the system dots remain (Update + Settings).
+- Reserve a bottom safety margin for the indicator area so touch hits don't interfere with the content area.
 
-### 5.1 agent 状态
+---
 
-> 图标的“⏸ ▶ 🧠 ✓ ✕ ○”为示意；设备端用**主题内置的绘制形状/矢量图标**（或用已嵌入字体的符号字形），**不渲染 emoji**。每个状态一个固定图标语义，随状态色一同切换。
+## 5. Status → Color / Icon / Copy Mapping
 
-| AgentStatus | 指引器/徽标色 | 图标语义 | 中文文案 | 英文键 |
+> Status codes come from the `AgentStatus` contract. The UI shows **status color + icon + bilingual copy keys**, not wall-to-wall English. This table also drives the indicator colors, the card status badges, the detail-page banner, and the update status.
+
+### 5.1 Agent Status
+
+> The "⏸ ▶ 🧠 ✓ ✕ ○" glyphs are illustrative; the device uses **theme-built-in drawn shapes/vector icons** (or symbol glyphs embedded in the font) and **never renders emoji**. Each status has one fixed icon semantic that switches together with its status color.
+
+| AgentStatus | Indicator/badge color | Icon semantic | Chinese copy | English key |
 |---|---|---|---|---|
-| `WAITING` | 琥珀 `0xFFB300` | 暂停/等待 | 等待 | waiting |
-| `RUNNING` | 绿 `0x00C853` | 播放/进行 | 运行中 | running |
-| `THINKING` | 蓝 `0x2094F3` | 脑/思考 | 思考中 | thinking |
-| `DONE` | 青 `0x00BFA5` | 对勾/完成 | 完成 | done |
-| `ERROR` | 红 `0xFF3D00` | 叉/出错 | 出错 | error |
-| `IDLE` / `OFFLINE` | 灰 `0x7A7A7A` | 圆点/空心 | 空闲 · 离线 | idle / offline |
+| `WAITING` | Amber `0xFFB300` | pause/wait | 等待 | waiting |
+| `RUNNING` | Green `0x00C853` | play/in progress | 运行中 | running |
+| `THINKING` | Blue `0x2094F3` | brain/thinking | 思考中 | thinking |
+| `DONE` | Teal `0x00BFA5` | check/done | 完成 | done |
+| `ERROR` | Red `0xFF3D00` | cross/error | 出错 | error |
+| `IDLE` / `OFFLINE` | Gray `0x7A7A7A` | dot/outline | 空闲 · 离线 | idle / offline |
 
-- 逻辑归并：`NEEDS_INPUT → WAITING`；`SUCCESS → DONE`；`IDLE`/`OFFLINE` 单列。
-- **聚合状态** = 活跃里优先级最高的异常/进行态：`ERROR > RUNNING > WAITING > DONE > IDLE`。
+- Logical mapping: `NEEDS_INPUT → WAITING`; `SUCCESS → DONE`; `IDLE`/`OFFLINE` stay separate.
+- **Aggregated status** = the highest-priority exception/active state among the active ones: `ERROR > RUNNING > WAITING > DONE > IDLE`.
 
-### 5.2 更新（OTA）状态
+### 5.2 Update (OTA) Status
 
-| 阶段 | 颜色 | 文案（中文/英文键） |
+| Stage | Color | Copy (Chinese / English key) |
 |---|---|---|
-| 有可用更新 | 蓝 `0x2094F3` | 有新版本 / update_available |
-| 更新中（下载/校验） | 琥珀 `0xFFB300` | 更新中 / updating |
-| 已是最新 | 灰 `0x7A7A7A` | 已是最新 / up_to_date |
-| 回滚 | 红 `0xFF3D00` | 已回滚 / rolled_back |
+| Update available | Blue `0x2094F3` | 有新版本 / update_available |
+| Updating (downloading/verifying) | Amber `0xFFB300` | 更新中 / updating |
+| Up to date | Gray `0x7A7A7A` | 已是最新 / up_to_date |
+| Rolled back | Red `0xFF3D00` | 已回滚 / rolled_back |
 
 ---
 
-## 6. OTA 与固件升级界面（P1 · 最高优先级）
+## 6. OTA and Firmware Update UI (P1 · Highest Priority)
 
-> 定位：这套界面**不只是给用户看状态，而是开发期验证 OTA 能否工作的测试仪器**。对应 AW-006 管道三阶段（检查 / 下载 / 自检回滚），UI 在每个阶段都必须可观测、可干预、可诊断。
+> Positioning: this UI is **not just for the user to see status — it is a test instrument for verifying that OTA works during development**. Corresponding to the AW-006 pipeline's three phases (check / download / self-test and rollback), the UI must be observable, controllable, and diagnosable at every phase.
 
-OTA/更新 UI 由**三个面**组成。
+The OTA/update UI consists of **three surfaces**.
 
-### 6.1 全屏更新覆盖层（Update Overlay）— 状态机，接管整个屏幕
+### 6.1 Full-Screen Update Overlay — State Machine Taking Over the Screen
 
-更新进行中时无条件全屏显示，避免任何 agent 内容盖在上面。状态机严格对齐 OTA 管道：
+While an update is in progress it displays unconditionally in full screen so no agent content covers it. The state machine aligns strictly with the OTA pipeline:
 
-| 阶段 | 屏幕呈现 | 用户可干预 |
+| Stage | Screen presentation | User intervention |
 |---|---|---|
-| 检查更新 | 转圈 + 「正在检查更新…」 | 可取消 |
-| 有新版 | 新旧版本号 + 大小 + changelog + 「下载并安装」 | 确认 / 放弃 |
-| 下载中 | **进度条 + 已下载字节 + 速度**（由 `ESP_HTTPS_OTA` 事件驱动） | 不可中断（防半写） |
-| 校验中 | 转圈 + SHA256/签名校验 | — |
-| 将重启 | 「更新完成，正在重启…」 | — |
-| 自检（PENDING_VERIFY） | 新固件首屏渲染**自检页**（见 6.2） | — |
-| 成功 | 绿 ✓「更新成功 · 运行 vX」 | — |
-| 失败 / 回滚 | 红 ✕「更新失败，已回滚到 vPrev」+ 原因 | 查看诊断 |
+| Checking for updates | spinner + "正在检查更新…" (Checking for updates…) | Cancelable |
+| New version available | old/new version numbers + size + changelog + "下载并安装" (Download and install) | Confirm / dismiss |
+| Downloading | **progress bar + bytes downloaded + speed** (driven by `ESP_HTTPS_OTA` events) | Not interruptible (prevents partial writes) |
+| Verifying | spinner + SHA256/signature verification | — |
+| About to reboot | "更新完成，正在重启…" (Update complete, rebooting…) | — |
+| Self-test (PENDING_VERIFY) | the new firmware renders the **self-test page** on its first screen (see 6.2) | — |
+| Success | green ✓ "更新成功 · 运行 vX" (Update succeeded · running vX) | — |
+| Failure / rollback | red ✕ "更新失败，已回滚到 vPrev" (Update failed, rolled back to vPrev) + reason | View diagnostics |
 
-### 6.2 自检 / 健康页（Self-Test Screen）— 回滚决策屏（对“能否实现 OTA”最关键）
+### 6.2 Self-Test / Health Screen — the Rollback-Decision Screen (the Most Critical for "Can OTA Work at All?")
 
-对标 OTA 04 Q4：新固件启动后进入 `PENDING_VERIFY`，**必须先渲染出这个自检页**才能证明显示 + 触摸初始化成功，且该页本身就是「是否 `mark_valid` 回滚」的判定面。逐项打勾/打叉：
+Per OTA-04 Q4: after the new firmware boots it enters `PENDING_VERIFY`; **this self-test page must render first** to prove that display + touch initialization succeeded, and the page itself is the decision surface for whether to `mark_valid` or roll back. Items are checked off or crossed out one by one:
 
-- [x] 显示初始化（本页已渲染 = 已证明）
-- [x] 触摸 I2C ACK
-- [x] WiFi STA 已连接并获取 IP
-- [x] OTA 检查任务存活
-- [ ] 服务器可达（**仅记录，不回滚**——云端故障不该把好固件标为坏）
+- [x] Display initialization (this page rendering already proves it)
+- [x] Touch I2C ACK
+- [x] Wi-Fi STA connected and IP obtained
+- [x] OTA check task alive
+- [ ] Server reachable (**recorded only, no rollback** — a cloud-side fault must not mark good firmware as bad)
 
-全部通过 → `esp_ota_mark_app_valid_cancel_rollback()`；任一**必过项**失败/超时 → 显示「自检失败，回滚中」并触发 `esp_ota_mark_app_invalid_rollback_and_reboot()`。
+All pass → `esp_ota_mark_app_valid_cancel_rollback()`; any **required item** fails/times out → show "自检失败，回滚中" (Self-test failed, rolling back) and trigger `esp_ota_mark_app_invalid_rollback_and_reboot()`.
 
-> **这页是 AW-006 回滚演练的肉眼判据。** 回滚窗口可按 `CONFIG_BOOTLOADER_APP_ROLLBACK_TIMEOUT` 配置（默认 5s，建议调大到 30–60s）。
+> **This page is the visual criterion for the AW-006 rollback drill.** The rollback window is configurable via `CONFIG_BOOTLOADER_APP_ROLLBACK_TIMEOUT` (default 5s; recommended to raise it to 30–60s).
 
-### 6.3 系统更新区（UpdatePanel 主体）
+### 6.3 System Update Area (the UpdatePanel Body)
 
-作为常驻系统 Panel（P1），提供测试期可观测诊断：
+As the resident system Panel (P1), it provides observable diagnostics during the testing phase:
 
-- **当前版本** + **运行槽**（factory / ota_0 / ota_1）+ 构建信息。
-- **「检查更新」按钮** + 上次检查时间 + 结果。
-- **诊断信息**：启动次数 / 上次崩溃原因 / OTA 状态 / 回滚历史（来自 NVS，用于回滚原因分析）。
-- 下载中在此显示进度（与 6.1 全屏覆盖层同步）。
+- **Current version** + **running slot** (factory / ota_0 / ota_1) + build info.
+- **"Check for updates" button** + time of last check + result.
+- **Diagnostics**: boot count / last crash reason / OTA status / rollback history (from NVS, for rollback cause analysis).
+- While downloading, progress also appears here (in sync with the 6.1 full-screen overlay).
 
-### 6.4 OTA 管道 → UI 对照
+### 6.4 OTA Pipeline → UI Mapping
 
 ```text
-检查更新 → HTTPS 拉取 manifest（签名验证 + fresh 检查）
-  → 版本 > 当前？ → 下载到临时区 → 校验 sha256+签名 → esp_ota_write 到空闲槽
-  → 重启（bootloader 置 PENDING_VERIFY）
-  → 自检（6.2：显示/触摸/WiFi/OTA 任务）
-  → 全过 → mark_valid | 失败/超时 → mark_invalid_rollback
-  → 连续失败 N 次 / GPIO 长按 → 跳 factory 恢复固件
+Check for updates → HTTPS fetch of manifest (signature verification + freshness check)
+  → version > current? → download to staging area → verify sha256+signature → esp_ota_write to the free slot
+  → reboot (bootloader sets PENDING_VERIFY)
+  → self-test (6.2: display/touch/Wi-Fi/OTA task)
+  → all pass → mark_valid | fail/timeout → mark_invalid_rollback
+  → N consecutive failures / GPIO long-press → boot the factory recovery firmware
 ```
 
 ---
 
-## 7. 数据流（AgentStatus → UI）
+## 7. Data Flow (AgentStatus → UI)
 
-- 设备只消费统一 `AgentStatus`。
-  - **状态码** → 颜色/图标（§5）。
-  - **数值** → 进度/统计。
-  - **文案** → 按当前语言由消息键映射（协议不携带显示用英文）。
-- 渲染走**增量更新**：状态码/数值变化才重绘对应区域（卡头顶部 / 进度条 / 详情区块），不整屏刷；局部失效重绘。
-- 会话增删 → `rebuild_panels()`（§1.2）。
-- 数据与 UI 解耦：采集/传输在任务，UI 在 `lv_timer_handler()` 主循环；数据先入缓冲，UI 只读缓冲渲染。
-
----
-
-## 8. 双语与字体
-
-- 界面从第一天起支持**中文与英文**。
-- 协议传递稳定状态码和文案键；设备按当前语言映射文案。**不能把英文展示文案当作协议状态。**
-- 设备端**内置中文字体**（LVGL 字体转换，子集化按需嵌字符以省 Flash）；PC sim 的宿主字体仅作布局参考。
-- 语言切换入口在 SettingsPanel。
+- The device consumes only the unified `AgentStatus`.
+  - **Status code** → color/icon (§5).
+  - **Values** → progress/statistics.
+  - **Copy** → mapped from message keys by the current language (the protocol carries no display English).
+- Rendering uses **incremental updates**: only the affected regions are redrawn when the status code/value changes (card header / progress bar / detail block), never full-screen; partial invalidation redraw.
+- Sessions added/removed → `rebuild_panels()` (§1.2).
+- Data and UI are decoupled: acquisition/transport run in tasks, the UI runs in the `lv_timer_handler()` main loop; data first enters a buffer and the UI only reads the buffer to render.
 
 ---
 
-## 9. 设置面板与空态 / 错误态
+## 8. Bilingual Support and Fonts
 
-### 9.1 SettingsPanel（末尾固定）
-
-- 语言切换（中 / 英）。
-- 主题 / 亮度。
-- 关于（固件版本、设备号、运行槽）。
-- （OTA 相关集中在 UpdatePanel，不在 Settings 重复；此处仅“关于/版本”只读展示。）
-
-> 早期（OTA 测试期）Settings 内也可放“系统更新区”的只读摘要，但与 UpdatePanel 分工需明确，避免两处状态不一致。
-
-### 9.2 空态 / 错误态
-
-- 无活跃 agent：空态页 + 仅系统点（Update + Settings）。
-- 离线 / 传输中断：状态卡显示 `OFFLINE` 灰，对应指引器点转灰，不整屏报错。
-- `ERROR`：状态卡 + 指引器点转红，正文显示原因；可滚动看详情。
+- The UI supports **Chinese and English** from day one.
+- The protocol carries stable status codes and copy keys; the device maps copy by current language. **Display English must never be used as protocol status.**
+- The device **embeds a Chinese font** (converted with LVGL's font tools, subsetting to embed only the characters needed to save Flash); the PC simulator's host fonts are only for layout reference.
+- The language switch lives in the SettingsPanel.
 
 ---
 
-## 10. 性能与实现约束（真机验收，不靠 sim 下结论）
+## 9. Settings Panel and Empty / Error States
 
-- 16-bit RGB565、PSRAM 全屏 draw buffer、局部失效重绘、控件复用、短动画（200–300ms）。
-- **避免渐变/阴影/半透明**——SW 渲染器下是流畅度杀手；以实色块、圆角矩形、文字为主。
-- 优先保证手势跟手性（偶发丢帧可接受，卡顿不可接受）。
-- 中文为设备内置字体；数值×100/×1000 存整型再除回。
-- **PC sim 只验证布局、滑动规则、状态映射、交互语义**；帧率、触摸延迟、内存/PSRAM、Wi-Fi 重连、OTA 回滚只能在真机测量（AW-002/003/005）。
+### 9.1 SettingsPanel (Fixed at the End)
 
----
+- Language switching (Chinese / English).
+- Theme / brightness.
+- About (firmware version, device ID, running slot).
+- (OTA-related items are concentrated in the UpdatePanel, not duplicated in Settings; here only the "About/version" read-only display.)
 
-## 11. 验收范围（AW-005）
+> Early on (during OTA testing), Settings may also show a read-only summary of the "system update area," but the split of responsibilities with the UpdatePanel must stay explicit to avoid the two places disagreeing.
 
-- [ ] Panel / AgentCard / SettingsPanel / UpdatePanel / PanelIndicator 行为已指定（本文）。
-- [ ] 一 panel 一 agent（可扩展到 1–2 张 card）。
-- [ ] 折叠/展开、横滑循环、方向锁定、吸附、指引器状态色已指定。
-- [ ] 双语（中/英）字符串键已指定；协议 payload 不随显示语言变化。
-- [ ] 真机测得触摸延迟、帧率、内存基线（AW-005 测量，非 sim 结论）。
-- [ ] OTA 三面（6.1/6.2/6.3）与 AW-006 管道对齐，可用于回滚演练判据。
+### 9.2 Empty / Error States
+
+- No active agents: empty-state page + system dots only (Update + Settings).
+- Offline / transport interrupted: the status card shows `OFFLINE` in gray, the matching indicator dot turns gray, no full-screen error.
+- `ERROR`: the status card + indicator dot turn red, the body shows the reason; scroll for details.
 
 ---
 
-## 12. 待确认 / 可切换点
+## 10. Performance and Implementation Constraints (Real-Device Acceptance, No Conclusions from sim Alone)
 
-1. **OTA 独立 panel（采用）vs 仅 Settings 顶部区**：本设计采用 `…→[UpdatePanel]→[SettingsPanel]`，UpdatePanel 常驻。若切换为“仅 Settings 顶部区”，则指引器点减少，Update 状态仅能在 Settings 内查看。
-2. **展开/折叠跨 panel 记忆**：已定默认——**进入/切回任何 Panel 都回到折叠态**（确定性、可预期），不跨 panel 记忆展开态。若后续需要“保持上次展开”，在此追加即可。
-3. **LVGL 版本**：v8.4（官方 demo，教程多）vs v9.x（与 PC sim 一致）——AW-005 锁定后写死到本文与 `gui-framework.md`。
-4. **更新覆盖层是否允许在 Settings 打开“更新历史/回滚详情”**：本设计仅在诊断区给只读摘要，未做完整历史页。
+- 16-bit RGB565, full-screen PSRAM draw buffer, partial-invalidation redraws, widget reuse, short animations (200–300ms).
+- **Avoid gradients/shadows/semi-transparency** — they kill smoothness under the software renderer; stick to solid color blocks, rounded rectangles, and text.
+- Prioritize gesture responsiveness (occasional dropped frames are acceptable; jank is not).
+- Chinese uses the device-embedded font; store values as integers ×100/×1000 and divide back.
+- **The PC simulator verifies only layout, swipe rules, status mapping, and interaction semantics**; frame rate, touch latency, memory/PSRAM, Wi-Fi reconnection, and OTA rollback can only be measured on real hardware (AW-002/003/005).
 
 ---
 
-## 引用来源
+## 11. Acceptance Scope (AW-005)
 
-- `docs/architecture/00-repository-organization-design.md`（Panel/AgentCard/SettingsPanel/PanelIndicator 术语）
-- `docs/hardware/board-spec-constraints.md`（板级权威约束）
-- `docs/ui/gui-framework.md`（LVGL 版本与架构）
-- `docs/ui/data-viz-diagram-design.md`（图表/仪表盘渲染方法）
-- `docs/ota/02-ota-design-esp-https-rollback.md`、`docs/ota/04-ota-evaluation-conclusion.md`（OTA 管道与自检/回滚判据）
-- `docs/ota/01-carousel-swipe-cards-requirement.md`（轮播循环/吸附/指示器需求）
+- [ ] Panel / AgentCard / SettingsPanel / UpdatePanel / PanelIndicator behavior specified (this document).
+- [ ] One Panel per agent (extensible to 1–2 cards).
+- [ ] Collapse/expand, horizontal circular swiping, direction locking, snapping, and indicator status colors specified.
+- [ ] Bilingual (Chinese/English) string keys specified; protocol payloads do not vary with display language.
+- [ ] Touch latency, frame rate, and memory baselines measured on real hardware (measured in AW-005, not sim conclusions).
+- [ ] The three OTA surfaces (6.1/6.2/6.3) align with the AW-006 pipeline and can serve as rollback-drill criteria.
+
+---
+
+## 12. Open Points / Switchable Decisions
+
+1. **Dedicated OTA panel (adopted) vs. Settings-top-only**: this design uses `…→[UpdatePanel]→[SettingsPanel]` with a resident UpdatePanel. If switched to "Settings-top-only," there is one fewer indicator dot, and update status is visible only inside Settings.
+2. **Cross-panel expand/collapse memory**: the default is settled — **entering/returning to any Panel resets to the collapsed state** (deterministic, predictable); the expanded state is not remembered across Panels. If "keep last expanded" is wanted later, append it here.
+3. **LVGL version**: v8.4 (official demo, more tutorials) vs v9.x (matches the PC sim) — once locked in AW-005, pin it in this document and `gui-framework.md`.
+4. **Whether the update overlay should allow opening "update history/rollback details" from Settings**: this design only provides a read-only summary in the diagnostics area; no full history page is implemented.
+
+---
+
+## References
+
+- `docs/architecture/00-repository-organization-design.md` (Panel/AgentCard/SettingsPanel/PanelIndicator terminology)
+- `docs/hardware/board-spec-constraints.md` (authoritative board-level constraints)
+- `docs/ui/gui-framework.md` (LVGL version and architecture)
+- `docs/ui/data-viz-diagram-design.md` (chart/gauge rendering approach)
+- `docs/ota/02-ota-design-esp-https-rollback.md`, `docs/ota/04-ota-evaluation-conclusion.md` (OTA pipeline and self-test/rollback criteria)
+- `docs/ota/01-carousel-swipe-cards-requirement.md` (carousel loop/snap/indicator requirements)

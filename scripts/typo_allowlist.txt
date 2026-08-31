@@ -1,0 +1,3 @@
+# agent-widget typo allowlist (one word per line, '#' comments)
+# Only deliberate project terms / names that are not typos.
+# Example: "waveshare" "axs15231b"

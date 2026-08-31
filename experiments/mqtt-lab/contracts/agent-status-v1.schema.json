@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/agent-widget/agent-widget/blob/main/experiments/mqtt-lab/contracts/agent-status-v1.schema.json",
+  "title": "AgentStatus v1",
+  "description": "Device-facing agent status contract (lab draft feeding AW-004). State codes and message keys are stable and language-independent; the device maps them to display copy. 'activity' is opaque content (e.g. a task title) rendered as-is, never localized. This file is a working input to AW-004, not the ratified protocol contract.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "agentId", "ts", "state", "seq"],
+  "properties": {
+    "v": { "const": 1, "description": "Schema version" },
+    "agentId": { "type": "string", "minLength": 1, "description": "Stable agent identifier" },
+    "ts": { "type": "integer", "description": "Unix epoch seconds (UTC)" },
+    "state": {
+      "type": "string",
+      "enum": ["IDLE", "RUNNING", "BLOCKED", "DONE", "ERROR", "OFFLINE"],
+      "description": "Stable status code; display copy comes from a message key, never from this string"
+    },
+    "activity": { "type": "string", "description": "Opaque short content shown as-is (not localized)" },
+    "progress": { "type": "integer", "minimum": 0, "maximum": 100, "description": "0..100, meaningful while RUNNING/BLOCKED" },
+    "model": { "type": "string", "description": "Model/provider label, opaque content" },
+    "task": { "type": "string", "description": "Task id or title, opaque content" },
+    "seq": { "type": "integer", "minimum": 0, "description": "Monotonic per-agent sequence for ordering/loss detection" }
+  }
+}

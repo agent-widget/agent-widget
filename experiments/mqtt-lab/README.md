@@ -1,0 +1,175 @@
+# agent-widget MQTT lab
+
+A local MQTT test service that reproduces the **future production MQTT
+environment** of the agent-widget project as closely as a single machine
+allows. It is the test bed for [AW-004](../docs.local/session/plan.md)
+(`AgentStatus` v1 delivery over MQTT) and the OTA notification channel
+([docs/ota/11-ota-notification-mqtt.md](../../docs/ota/11-ota-notification-mqtt.md)),
+which ride the same broker.
+
+Everything is reproducible and self-verifying: one command boots a fleet of
+virtual devices and proves delivery, staged rollouts, offline queueing,
+retained broadcasts, reconnect, and rollback.
+
+> Status: local test infrastructure for the planned AW-004 work. The JSON
+> schemas in `contracts/` are working drafts feeding AW-004, **not** the
+> ratified protocol contract (that belongs in `protocols/` once AW-004 lands).
+
+---
+
+## 1. What the future environment looks like
+
+```
+ Agent / adapter ──HTTP API──▶ fleet server ──MQTT──▶ broker ──MQTT──▶ ESP32-S3 device
+                                                    (TLS + auth)        (subscribes)
+     OTA release ──GitHub Releases──▶ metadata ──MQTT──▶ ota/announce, ota/{deviceId},
+                                    (version/url/sha256/signature/min_version)
+                                    firmware binary stays on HTTPS
+```
+
+Production properties this lab reproduces:
+
+| Property | Future environment | This lab |
+|---|---|---|
+| Broker | mosquitto-class broker | `eclipse-mosquitto:2` in Docker |
+| TLS | listener with real CA | self-signed local CA on port 8883 (server-auth) |
+| Auth | per-role / per-device credentials | `server` operator + one user per device (username == deviceId) |
+| Authorization | topic ACLs | `broker/acl.conf`: devices locked to their own topics |
+| Status contract | `AgentStatus` v1 (state codes, language-independent) | `contracts/agent-status-v1.schema.json`, validated on publish and receive |
+| OTA trigger | metadata only over MQTT | `contracts/ota-announce-v1.schema.json` (same fields as the design doc) |
+| Delivery | QoS 1, retained broadcast | QoS 1 everywhere; `ota/announce` retained, targeted/group non-retained |
+| Offline behavior | persistent sessions queue QoS1 | persistent sessions (`clean_session=False`) + broker persistence |
+| LWT | device offline telemetry | retained Last-Will on `device/{id}/telemetry` |
+| Reconnect | backoff loop | automatic backoff reconnect |
+| Rollout | canary / cohort / per-device / recall | `sims/ota_pub.py` implements all four |
+| Rollback | self-test failure → rollback | `--fail-self-test` drill |
+
+## 2. Quickstart
+
+Requirements: Docker (daemon running), Python 3.10+, `openssl`, `nc`.
+
+```bash
+# 1. one-time setup (venv + paho-mqtt + jsonschema)
+bash scripts/setup.sh
+
+# 2. start the broker (generates TLS certs, provisions users, starts container)
+bash scripts/start-broker.sh
+
+# 3. run the self-verifying end-to-end scenario (≈90 s)
+.venv/bin/python sims/demo.py
+#    ... --fast for a shorter run
+
+# 4. watch all traffic live (separate terminal)
+.venv/bin/python sims/tail.py
+```
+
+Stop / reset:
+
+```bash
+bash scripts/stop-broker.sh      # stop, keep state
+bash scripts/reset-broker.sh     # wipe users/sessions/queues entirely
+bash scripts/add-device-user.sh esp32s3-cafebabe   # register a new device id
+```
+
+## 3. Manual exploration
+
+```bash
+# Publish an agent status (retained, so new devices see it immediately)
+.venv/bin/python sims/server_pub.py --once --agents claude-01,deepseek-02
+
+# Continuous status walk
+.venv/bin/python sims/server_pub.py --loop --interval 5 --steps 40
+
+# Run a virtual device (persistent session, LWT, reconnect)
+.venv/bin/python sims/device.py --device-id esp32s3-a1b2c3
+.venv/bin/python sims/device.py --device-id esp32s3-778899 --fail-self-test   # rollback drill
+.venv/bin/python sims/device.py --device-id esp32s3-112233 --offline-start 15 # late joiner
+.venv/bin/python sims/device.py --tls --ca broker/certs/ca.crt               # TLS path
+
+# OTA rollouts (see sims/ota_pub.py --help)
+.venv/bin/python sims/ota_pub.py --target broadcast --version 3.3.0
+.venv/bin/python sims/ota_pub.py --target canary   --percent 40 --version 3.1.0
+.venv/bin/python sims/ota_pub.py --target group    --group stable --version 3.1.0
+.venv/bin/python sims/ota_pub.py --target device   --device-id esp32s3-112233 --version 3.2.0
+# recall guards:
+.venv/bin/python sims/ota_pub.py --target broadcast --version 3.0.0 --min-version 3.3.0
+```
+
+Any standard MQTT client can also join: `tcp://127.0.0.1:1883`,
+`ssl://127.0.0.1:8883` (trust `broker/certs/ca.crt`), or
+`ws://127.0.0.1:9001` for browser tools such as MQTTX.
+
+## 4. Topics and payloads
+
+| Topic | Direction | QoS / retained | Payload schema |
+|---|---|---|---|
+| `agents/{agentId}/status` | server → device | QoS1, retained | `agent-status-v1` |
+| `ota/announce` | server → device | QoS1, retained | `ota-announce-v1` |
+| `ota/{deviceId}` | server → device | QoS1 | `ota-announce-v1` |
+| `ota/group/{group}` | server → device | QoS1 | `ota-announce-v1` |
+| `device/{deviceId}/telemetry` | device → server | QoS1, retained | `device-telemetry-v1` |
+| `device/{deviceId}/events` | device → server | QoS1 | `device-event-v1` |
+| `device/{deviceId}/ota/result` | device → server | QoS1, retained | `device-ota-result-v1` |
+
+Canary cohort: `hash(deviceId) % 5` → `canary-0..canary-4`. A device
+subscribes to its own bucket; the operator publishes to the buckets covering
+the desired percentage.
+
+Credentials (LOCAL TEST ONLY — never reuse): `server` / `srv-dev-pass` and
+`<deviceId>` / `dev-test-pass` (provisioned by `scripts/start-broker.sh`).
+
+## 5. What `demo.py` verifies
+
+1. fleet boots and reports online (telemetry + retained)
+2. `AgentStatus` v1 statuses delivered and rendered (retained, language-independent)
+3. canary rollout: only the hashed-bucket devices upgrade
+4. group rollout (`stable`) upgrades the remaining fleet
+5. offline device: broker fires LWT; a targeted announce is queued by the
+   persistent session and installed on reconnect (SIGSTOP/SIGCONT injection)
+6. retained broadcast: a late-joining device installs the announced version
+   and renders the retained statuses; it misses non-retained canary/group/targeted
+7. recall guards: older announce rejected (anti-downgrade), upgrade above a
+   `min_version` wall rejected (anti-rollback floor)
+8. rollback drill: a device with failing self-test rolls back and keeps its
+   firmware version
+
+Exit code 0 = all checks passed. Device logs land in `logs/<deviceId>.log`.
+
+`demo.py` starts by clearing every retained message from earlier runs (empty
+retained publishes on the status/announce/telemetry/result topics), so each
+run is judged against a fresh broker state and never against leftovers.
+
+## 6. Layout
+
+```
+mqtt-lab/
+├── broker/
+│   ├── mosquitto.conf       # production-like broker config
+│   ├── acl.conf             # per-role / per-device ACLs
+│   ├── docker-compose.yml   # eclipse-mosquitto container
+│   └── scripts/gen-certs.sh # local CA + broker cert for 8883
+├── contracts/               # JSON Schemas (drafts feeding AW-004)
+├── sims/
+│   ├── common.py            # topics, credentials, canary math, payloads
+│   ├── device.py            # virtual ESP32-S3 device
+│   ├── server_pub.py        # AgentStatus publisher
+│   ├── ota_pub.py           # OTA rollout publisher
+│   ├── tail.py              # traffic watcher
+│   └── demo.py              # self-verifying end-to-end scenario
+└── scripts/                 # setup / start / stop / reset / add-device
+```
+
+Generated artifacts (`broker/certs/`, `broker/state/`, `.venv/`, `logs/`) are
+gitignored and stay local.
+
+## 7. Limitations
+
+- Devices are Python processes, not ESP32 firmware; timing is not
+  representative of the real MCU.
+- Certificates are a self-signed local CA (server-auth only, no client
+  certs) — the same topology, not the same trust anchor, as production.
+- `url`/`sha256`/`signature` in OTA announces are structurally valid
+  placeholders; the firmware download is simulated (opt-in `--check-url`
+  does a HEAD against the real GitHub URL).
+- This is local test infrastructure: the schemas here are inputs to AW-004,
+  and AW-004 owns the ratified `AgentStatus` contract in `protocols/`.

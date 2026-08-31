@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/agent-widget/agent-widget/blob/main/experiments/mqtt-lab/contracts/device-telemetry-v1.schema.json",
+  "title": "Device Telemetry v1",
+  "description": "Device -> broker/server telemetry. 'cause' distinguishes connect/heartbeat/shutdown from the Last-Will (lwt) offline message, mirroring the future ESP32 MQTT client with LWT.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "deviceId", "online", "version", "ts"],
+  "properties": {
+    "v": { "const": 1 },
+    "deviceId": { "type": "string", "minLength": 1 },
+    "online": { "type": "boolean" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$", "description": "Firmware version currently running" },
+    "firmware": { "type": "string", "description": "Firmware build id, opaque" },
+    "rssi": { "type": "integer", "description": "Simulated Wi-Fi RSSI in dBm" },
+    "uptime": { "type": "integer", "description": "Seconds since boot" },
+    "heap": { "type": "integer", "description": "Simulated free heap in bytes" },
+    "cause": { "type": "string", "enum": ["connect", "heartbeat", "shutdown", "lwt", "install"] },
+    "ts": { "type": "integer" }
+  }
+}

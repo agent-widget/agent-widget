@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/agent-widget/agent-widget/blob/main/experiments/mqtt-lab/contracts/ota-announce-v1.schema.json",
+  "title": "OTA Announce v1",
+  "description": "MQTT OTA notification metadata (docs/ota/11-ota-notification-mqtt.md). MQTT carries only metadata; the firmware binary is downloaded over HTTPS and verified by sha256 + RSA signature. 'signature' is the base64 RSA-2048 PKCS#1 v1.5 signature over the firmware sha256. In the lab the sha256/signature are structurally valid placeholders.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "url", "sha256", "signature", "min_version", "id"],
+  "properties": {
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$", "description": "New firmware version (semver-ish)" },
+    "url": { "type": "string", "minLength": 1, "description": "HTTPS firmware binary URL (GitHub Releases in production)" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "sha256 of the firmware binary" },
+    "signature": { "type": "string", "minLength": 1, "description": "base64 RSA signature over the sha256" },
+    "min_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$", "description": "Anti-rollback floor: device refuses if current < min_version" },
+    "id": { "type": "string", "minLength": 1, "description": "Notification id for dedupe / diagnostics" }
+  }
+}

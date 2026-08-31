@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/agent-widget/agent-widget/blob/main/experiments/mqtt-lab/contracts/device-event-v1.schema.json",
+  "title": "Device Event v1",
+  "description": "Device lifecycle/OTA event log, published by the sim device for observability and demo assertions. Mirrors how a real device would report back to the fleet server.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "deviceId", "evt", "ts"],
+  "properties": {
+    "v": { "const": 1 },
+    "deviceId": { "type": "string", "minLength": 1 },
+    "evt": {
+      "type": "string",
+      "enum": [
+        "online", "offline", "wifi_dropped", "reconnected",
+        "status_rendered", "ota_accepted", "ota_installed",
+        "ota_rolled_back", "ota_rejected", "version_changed"
+      ]
+    },
+    "detail": { "type": "object", "description": "Event-specific fields (e.g. announce id, from/to versions, reason)" },
+    "ts": { "type": "integer" }
+  }
+}

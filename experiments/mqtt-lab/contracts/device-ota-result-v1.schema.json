@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/agent-widget/agent-widget/blob/main/experiments/mqtt-lab/contracts/device-ota-result-v1.schema.json",
+  "title": "Device OTA Result v1",
+  "description": "Last OTA outcome per device (retained on device/{deviceId}/ota/result). The full timeline lives in device/{deviceId}/events.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "deviceId", "announceId", "from", "to", "outcome", "ts"],
+  "properties": {
+    "v": { "const": 1 },
+    "deviceId": { "type": "string", "minLength": 1 },
+    "announceId": { "type": "string", "minLength": 1 },
+    "from": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "to": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "accepted", "installed", "rolled_back",
+        "rejected_same", "rejected_older", "rejected_min_version"
+      ]
+    },
+    "ts": { "type": "integer" }
+  }
+}

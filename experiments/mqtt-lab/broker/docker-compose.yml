@@ -1,0 +1,20 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: aw-mqtt-broker
+    hostname: aw-mqtt-broker
+    # Run as the host user so bind-mounted state/ (passwd, data, log) stays
+    # writable without root. Mosquitto binds ports >1024, so this is safe.
+    user: "${MQTT_LAB_UID:-1000}:${MQTT_LAB_GID:-1000}"
+    ports:
+      - "1883:1883"   # MQTT plaintext
+      - "8883:8883"   # MQTT TLS
+      - "9001:9001"   # MQTT over WebSocket
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./acl.conf:/mosquitto/config/acl.conf:ro
+      - ./certs:/mosquitto/config/certs:ro
+      - ./state/passwd:/mosquitto/config/passwd
+      - ./state/data:/mosquitto/data
+      - ./state/log:/mosquitto/log
+    restart: unless-stopped

@@ -6,6 +6,7 @@
 #include "connectivity.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
+#include "mqtt_trigger.h"
 #include "ota_manager.h"
 
 static const char *TAG = "app_main";
@@ -16,19 +17,7 @@ void app_main(void)
     ESP_ERROR_CHECK(connectivity_start());
     ESP_ERROR_CHECK(ota_manager_start());
     ESP_ERROR_CHECK(app_console_start());
-
-    // TEMP DEBUG: verify esp_flash_read correctness on a non-just-written region
-    {
-        const esp_partition_t *run = esp_ota_get_running_partition();
-        uint8_t probe[16];
-        if (esp_partition_read(run, 0, probe, sizeof(probe)) == ESP_OK) {
-            ESP_LOGI("DBG_READ", "running=%s addr=0x%x read16=%02x%02x %02x%02x %02x%02x %02x%02x",
-                     run->label, (unsigned)run->address,
-                     probe[0], probe[1], probe[2], probe[3], probe[4], probe[5], probe[6], probe[7]);
-        } else {
-            ESP_LOGE("DBG_READ", "esp_partition_read failed");
-        }
-    }
+    ESP_ERROR_CHECK(mqtt_trigger_start());
 
     // Blocks (self-test window) only if the running image is
     // PENDING_VERIFY; reboots via esp_ota_mark_app_invalid_rollback_and_reboot()

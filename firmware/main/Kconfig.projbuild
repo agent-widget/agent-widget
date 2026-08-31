@@ -50,4 +50,24 @@ menu "Agent Widget"
             Used to create a deterministic PENDING_VERIFY window for the
             power-loss rollback drill (T5).
 
+    config AGENT_WIDGET_MQTT_URI
+        string "MQTT broker URI (OTA notification trigger)"
+        default "mqtt://10.0.2.2:1883"
+        help
+            Broker URI for the MQTT OTA-trigger channel (docs/ota/11).
+            QEMU tests use the host NAT alias 10.0.2.2 against the local
+            mqtt-lab broker; board builds configure the production broker.
+
+    config AGENT_WIDGET_MQTT_USER
+        string "MQTT username (== deviceId in mqtt-lab ACL model)"
+        default "esp32s3-a1b2c3"
+
+    config AGENT_WIDGET_MQTT_PASS
+        string "MQTT password"
+        default ""
+
+    config AGENT_WIDGET_MQTT_DEVICE_ID
+        string "Device ID (subscribes ota/announce + ota/<id>)"
+        default "esp32s3-a1b2c3"
+
 endmenu

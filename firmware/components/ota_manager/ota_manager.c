@@ -190,6 +190,44 @@ esp_err_t ota_manager_cancel(void)
     return ok ? ESP_OK : ESP_ERR_INVALID_STATE;
 }
 
+esp_err_t ota_manager_offer_candidate(const ota_manifest_record_t *rec)
+{
+    if (rec == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    /* Basic sanity: version non-empty, HTTPS url, size>0, sha256 + signature set. */
+    bool sane = rec->version[0] != '\0'
+                && strncmp(rec->url, "https://", 8) == 0
+                && rec->size > 0
+                && rec->signature_len == OTA_MANIFEST_SIGNATURE_LEN;
+    for (int i = 0; sane && i < 32; i++) {
+        if (rec->sha256[i] != 0) break;
+        if (i == 31) sane = false; /* all-zero digest */
+    }
+    if (!sane) {
+        ESP_LOGE(TAG, "offer_candidate rejected: version='%.32s' url='%.64s' size=%u siglen=%u",
+                 rec->version, rec->url, (unsigned)rec->size, (unsigned)rec->signature_len);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    xSemaphoreTake(s_state_mutex, portMAX_DELAY);
+    bool busy = (s_status == OTA_STATE_CHECKING || s_status == OTA_STATE_DOWNLOADING);
+    if (!busy) {
+        s_candidate = *rec;
+        s_have_candidate = true;
+        s_install_confirmed = false;
+        s_cancel_requested = false;
+    }
+    xSemaphoreGive(s_state_mutex);
+    if (busy) {
+        ota_evt("OTA_BUSY", "trigger=mqtt reason=state_busy");
+        return ESP_ERR_INVALID_STATE;
+    }
+    set_status(OTA_STATE_AVAILABLE);
+    ota_evt("CANDIDATE", "version=%s size=%u trigger=mqtt", rec->version, (unsigned)rec->size);
+    return ESP_OK;
+}
+
 ota_status_t ota_manager_status(void)
 {
     xSemaphoreTake(s_state_mutex, portMAX_DELAY);

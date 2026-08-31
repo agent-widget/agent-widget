@@ -202,16 +202,19 @@ esp_err_t ota_installer_run(const ota_manifest_record_t *candidate)
             bool identity_ok = (desc->magic_word == ESP_APP_DESC_MAGIC_WORD)
                                && (strncmp(desc->project_name, "agent_widget", sizeof(desc->project_name)) == 0)
                                && (strncmp(desc->version, candidate->version, sizeof(desc->version)) == 0);
+            char proj[sizeof(desc->project_name) + 1];
+            memcpy(proj, desc->project_name, sizeof(desc->project_name));
+            proj[sizeof(desc->project_name)] = '\0';
             spi_flash_munmap(map_handle);
             if (!identity_ok) {
-                ESP_LOGE(TAG, "image identity mismatch: project='%.32s' version='%.32s' want project=agent_widget version=%s",
-                         desc->project_name, desc->version, candidate->version);
-                ota_evt("DOWNLOAD_FAIL", "version=%s stage=identity_mismatch project=%.32s got_version=%.32s",
-                        candidate->version, desc->project_name, desc->version);
+                ESP_LOGE(TAG, "image identity mismatch: project='%s' version='%.32s' want project=agent_widget version=%s",
+                         proj, desc->version, candidate->version);
+                ota_evt("DOWNLOAD_FAIL", "version=%s stage=identity_mismatch project=%s got_version=%.32s",
+                        candidate->version, proj, desc->version);
                 esp_ota_abort(ota);
                 return ESP_ERR_OTA_VALIDATE_FAILED;
             }
-            ota_evt("IDENTITY_OK", "version=%s project=%.32s", candidate->version, desc->project_name);
+            ota_evt("IDENTITY_OK", "version=%s project=%s", candidate->version, proj);
         } else {
             ESP_LOGW(TAG, "spi_flash_mmap failed for identity check — proceeding (sha256 already verified)");
         }

@@ -69,7 +69,10 @@ describes the intended audience.
 ```
 
 - `min_version`: device refuses the update if its current version is below this (anti-rollback guard).
-- `id`: optional notification id for dedupe / diagnostics.
+- `id`: notification id for dedupe / diagnostics. **Required** (2026-08-31 decision, aligned with
+  `experiments/mqtt-lab/contracts/ota-announce-v1.schema.json`): dedupe on the device (retained
+  re-delivery on reconnect) is a required delivery behavior, and a missing id would break it.
+  Final ratification happens at AW-004.
 - Payload is **display-language independent** (version numbers and hashes only; the UI renders the
   "update available" prompt from a message key, matching the `AgentStatus` state-code convention).
 

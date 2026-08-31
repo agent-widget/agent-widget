@@ -192,10 +192,12 @@ class SimDevice:
         if self.stopping:
             return
         # loop_forever() reconnects automatically; report the drop once.
+        # Publish the event BEFORE clearing _was_connected (the publish guard
+        # checks it).
         if self._was_connected:
-            self._was_connected = False
             log("DEVICE", c(f"{self.device_id} disconnected ({reason_code})", "yellow"))
             self._publish_event("wifi_dropped", {"reason": str(reason_code)})
+            self._was_connected = False
 
     def _on_message(self, client, userdata, msg):
         try:

@@ -319,6 +319,45 @@ class Demo:
         self._acl_probe(
             "device cannot subscribe to another device's telemetry",
             lambda c: c.subscribe(f"device/{PROBE_OTHER}/#", qos=1))
+        self._takeover_probe()
+
+    def _takeover_probe(self):
+        """Client-ID takeover: mosquitto does NOT bind client_id to the
+        authenticated user, so a credential that knows another device's id can
+        evict that device's connection. This probe documents the CURRENT lab
+        behavior (takeover succeeds); production must bind identity to
+        client ID (mutual TLS or an auth plugin) — see README limitations.
+        """
+        before = len(self.collector.events_of(PROBE_OTHER))
+        result = {"connected": None}
+
+        def on_connect(client, userdata, flags, rc, props):
+            result["connected"] = not rc.is_failure
+
+        takeover = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,
+                               client_id=PROBE_OTHER,  # another device's id!
+                               clean_session=True, protocol=mqtt.MQTTv311)
+        takeover.username_pw_set(PROBE_DEV, load_device_password(PROBE_DEV))
+        takeover.on_connect = on_connect
+        takeover.connect(self.host, self.port, KEEPALIVE)
+        takeover.loop_start()
+        time.sleep(0.5)
+        ok_connect = result["connected"] is True
+        # The evicted device (PROBE_OTHER) should drop and auto-reconnect.
+        evicted = self.collector.wait_until(
+            f"{PROBE_OTHER} dropped and reconnected after takeover",
+            lambda: any(e[1] == "wifi_dropped" for e in
+                        self.collector.events_of(PROBE_OTHER)[before:]), 15)
+        takeover.loop_stop()
+        try:
+            takeover.disconnect()
+        except Exception:
+            pass
+        self.check(
+            "client-ID takeover possible without auth binding (documented lab "
+            "limitation; production must bind client_id)",
+            ok_connect and evicted,
+            f"takeover connect={ok_connect}, victim reconnected={evicted}")
 
     # ------------------------------------------------------------- main run
 
@@ -463,9 +502,11 @@ class Demo:
                    rendered_ok, f"({rendered} rendered)")
         leaked_events = [e for e in self.collector.events_of(LATE_DEV)
                          if e[1] == "ota_accepted"
-                         and (e[2] or {}).get("announceId") not in (BROADCAST_ANN, None)]
-        self.check("late joiner missed non-retained canary/group/targeted "
-                   "(only broadcast reached it)", not leaked_events)
+                         and (e[2] or {}).get("announceId") in (CANARY_ANN,
+                                                                 TARGETED_ANN)]
+        self.check("late joiner never received canary or other-device-targeted "
+                   "announces (its own cohort groups may queue legitimately)",
+                   not leaked_events)
 
         self.section("7. recall guards (anti-downgrade + min_version wall)")
         # Every device is online now (the late joiner joined at step 6).

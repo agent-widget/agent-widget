@@ -154,6 +154,13 @@ fleet + the broadcast topic) with zero-length retained publishes, after the
 collector's subscriptions are acked, so each run is judged against a fresh
 broker state and never against leftovers.
 
+Note on persistent sessions: a device that was online in an earlier run keeps
+its persistent session on the broker, so QoS1 announces published to its own
+cohort while it is offline may be queued and delivered on reconnect — that is
+the intended offline-queueing behavior, not leakage. To start completely
+clean (no queued messages from prior runs), run `bash scripts/reset-broker.sh`
+then `bash scripts/start-broker.sh` before `demo.py`.
+
 ## 6. Layout
 
 ```

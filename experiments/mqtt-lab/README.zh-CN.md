@@ -143,6 +143,12 @@ Canary 分组：`hash(deviceId) % 5` → `canary-0..canary-4`。设备订阅自�
 实验室自有的 retained 主题（默认 agents + fleet + 广播主题），保证每次
 运行都基于全新 broker 状态，不被残留数据污染。
 
+关于持久会话：上一轮运行在线过的设备会在 broker 上保留持久会话，因此
+离线期间发布到其自身订阅组的 QoS1 公告可能被排队并在重连时补投——这是
+预期的离线补投行为，不是泄漏。如需完全干净的环境（无历史排队消息），
+先 `bash scripts/reset-broker.sh` 再 `bash scripts/start-broker.sh`，然后跑
+`demo.py`。
+
 ## 6. 目录结构
 
 ```

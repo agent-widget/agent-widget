@@ -66,7 +66,7 @@ HTTPS  →  实际的 ~1MB 固件二进制，来自 GitHub Releases（或 raw CD
 ```
 
 - `min_version`：设备当前版本低于它时拒绝升级（防误降级护栏）。
-- `id`：可选通知 id，用于去重/诊断。
+- `id`：通知 id，用于去重/诊断。**必填**（2026-08-31 决策，与 `experiments/mqtt-lab/contracts/ota-announce-v1.schema.json` 对齐）：设备端去重（重连时 retained 重投）是必需的投递行为，缺 id 会破坏去重。最终定案在 AW-004。
 - 负载**与显示语言无关**（只有版本号和哈希；UI 用消息键渲染「发现更新」提示，
   与 `AgentStatus` 的状态码约定一致）。
 

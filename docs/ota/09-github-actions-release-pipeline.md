@@ -12,7 +12,7 @@
 ```
 推 tag vX.Y.Z (main)  ──▶  GitHub Actions
                             ├─ 1. 解析版本号 (v2.0.0 → 2.0.0)
-                            ├─ 2. 构建: ota-sim/build_gh.py（Wokwi 云构建 API，零依赖）
+                            ├─ 2. 构建: ota-sim/build_arduino.sh（arduino-cli 本地编译，esp32 core 3.x + 自定义 OTA 双槽分区表）
                             ├─ 3. 创建 GitHub Release + 上传 firmware-vX.Y.Z.bin
                             └─ 4. 更新 firmware/manifest.json（回退通道，提交回 main）
 设备侧: 启动 → GitHub Releases API 发现新版本 → 自动 OTA 升级
@@ -40,7 +40,7 @@ git tag v3.0.0 && git push origin v3.0.0
 
 ## 四、边界与后续（AW-006）
 
-- 当前构建是 **Arduino PoC**（Wokwi 云构建 API 编译 app 镜像），与模拟验证完全同路径。生产替换点：workflow 第 2 步换成 ESP-IDF `idf.py build`，其余发布/清单逻辑不变。
+- 当前构建是 **Arduino PoC**（arduino-cli 编译 app 镜像 + OTA 双槽分区表，模拟器/Wokwi 同路径）。生产替换点：workflow 的 build 步骤换成 ESP-IDF `idf.py build`，其余发布/清单逻辑不变。
 - 真机刷机需要分区表配合（模拟器由项目 partitions.csv 控制；ESP-IDF 阶段由 sdkconfig 分区表控制）。
 - 仓库的 `firmware/releases/*.bin`（raw 直链）与 manifest 仍保留为回退通道；Releases 发布后设备优先走 Releases API。生产期删除 raw 通道 + `.gitignore` 例外。
 - Actions 运行状态可在仓库 Actions 页查看；release 结果公开可查（`GET /repos/agent-widget/agent-widget/releases`）。

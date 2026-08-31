@@ -1,0 +1,6 @@
+build_cache:
+  path: /mnt/sdc1/Playground/agent-widget/arduino-tool/data/cache
+directories:
+  data: /mnt/sdc1/Playground/agent-widget/arduino-tool/data
+  downloads: /mnt/sdc1/Playground/agent-widget/arduino-tool/data/downloads
+  user: /mnt/sdc1/Playground/agent-widget/arduino-tool/data/user

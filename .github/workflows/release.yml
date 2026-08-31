@@ -3,7 +3,7 @@ name: Release firmware
 # 打 tag v*.*.*（如 v2.0.0）→ 自动构建固件 → 发布到 GitHub Releases → 更新 manifest.json
 # 也可手动触发（需要 tag 已存在）。
 #
-# 注意：当前为 Arduino PoC 模拟期 pipeline（Wokwi 云构建 API，零依赖）。
+# 构建：arduino-cli 本地编译（esp32 core v3.x + 自定义 OTA 双槽分区表），自包含、可复现。
 # 生产 AW-006 将替换 build 步骤为 ESP-IDF（idf.py build），其余发布逻辑不变。
 on:
   push:
@@ -40,17 +40,30 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Resolved: tag=$TAG version=$VERSION"
 
-      - name: Build firmware (Wokwi cloud build API)
+      - name: Cache arduino core (re-runs)
+        uses: actions/cache@v4
+        with:
+          path: ~/.arduino15
+          key: arduino15-esp32-${{ runner.os }}-v1
+
+      - name: Install arduino-cli and esp32 core
+        run: |
+          curl -fsSL https://github.com/arduino/arduino-cli/releases/download/v1.1.1/arduino-cli_1.1.1_Linux_64bit.tar.gz -o /tmp/arduino-cli.tar.gz
+          tar xzf /tmp/arduino-cli.tar.gz -C /usr/local/bin arduino-cli
+          arduino-cli config init --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32
+
+      - name: Build firmware (arduino-cli, custom OTA partitions)
         run: |
           cd ota-sim
-          python3 build_gh.py "${{ steps.ver.outputs.version }}" latest \
-            ../dist/firmware-v${{ steps.ver.outputs.version }}.bin
+          ./build_arduino.sh "${{ steps.ver.outputs.version }}"
 
       - name: Verify artifact
         run: |
-          test -f dist/firmware-v${{ steps.ver.outputs.version }}.bin
-          ls -la dist/
-          SIZE=$(stat -c%s dist/firmware-v${{ steps.ver.outputs.version }}.bin)
+          test -f ota-sim/dist/firmware-v${{ steps.ver.outputs.version }}.bin
+          ls -la ota-sim/dist/
+          SIZE=$(stat -c%s ota-sim/dist/firmware-v${{ steps.ver.outputs.version }}.bin)
           echo "size=$SIZE" >> "$GITHUB_OUTPUT"
           echo "Artifact size: $SIZE"
 
@@ -59,7 +72,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cd dist
+          cd ota-sim/dist
           ASSET="firmware-v${{ steps.ver.outputs.version }}.bin"
           if gh release view "${{ steps.ver.outputs.tag }}" >/dev/null 2>&1; then
             echo "release exists, uploading asset"
@@ -67,17 +80,16 @@ jobs:
           else
             gh release create "${{ steps.ver.outputs.tag }}" "$ASSET" \
               --title "${{ steps.ver.outputs.tag }}" \
-              --notes "Firmware ${{ steps.ver.outputs.version }} — auto-built by GitHub Actions (Arduino PoC build via Wokwi cloud build API)." \
+              --notes "Firmware ${{ steps.ver.outputs.version }} — auto-built by GitHub Actions (arduino-cli, esp32 core 3.x, OTA dual-slot partitions)." \
               --target main
           fi
           echo "release_url=https://github.com/agent-widget/agent-widget/releases/tag/${{ steps.ver.outputs.tag }}" >> "$GITHUB_OUTPUT"
 
       - name: Update manifest.json (fallback channel)
         run: |
-          SIZE=$(stat -c%s dist/firmware-v${{ steps.ver.outputs.version }}.bin)
+          SIZE=$(stat -c%s ota-sim/dist/firmware-v${{ steps.ver.outputs.version }}.bin)
           URL="https://github.com/agent-widget/agent-widget/releases/download/${{ steps.ver.outputs.tag }}/firmware-v${{ steps.ver.outputs.version }}.bin"
           python3 ota-sim/update_manifest.py "${{ steps.ver.outputs.version }}" "$URL" "$SIZE" firmware/manifest.json
-          # commit back to main (workflow runs on tag → detached HEAD; re-checkout main)
           git fetch origin main
           git checkout main
           git pull --ff-only origin main

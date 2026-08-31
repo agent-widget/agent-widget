@@ -23,6 +23,7 @@ The project's end goal is a repeatable, real-device demo:
 | OTA release pipeline (GitHub Actions → GitHub Releases → device) | Verified end-to-end (v2.0.0) — see [`docs/ota/`](docs/ota/) |
 | Board constraint research (pins, I2C, display, build config) | Authoritative — see [`docs/hardware/board-spec-constraints.md`](docs/hardware/board-spec-constraints.md) |
 | MQTT lab (broker + virtual devices + self-verifying demo) | Built and code-reviewed — see [`experiments/mqtt-lab/README.md`](experiments/mqtt-lab/README.md) (21/21 checks) |
+| Device registration + device UUID (single-image flashing, MAC allowlist, dynamic per-device credentials) | Design — see [`docs/transport/device-registration-and-uuid.md`](docs/transport/device-registration-and-uuid.md) |
 | Production firmware (ESP-IDF) | In development |
 | AgentStatus contract (MQTT) | Lab draft in `experiments/mqtt-lab/contracts/`; ratification tracked in [#4](https://github.com/agent-widget/agent-widget/issues/4) |
 
@@ -82,6 +83,7 @@ agent-widget/
 - [`docs/hardware/board-spec-constraints.md`](docs/hardware/board-spec-constraints.md) — authoritative board spec, pins, and build constraints
 - [`docs/ui/panel-ui-design.md`](docs/ui/panel-ui-design.md) — display UI design
 - [`docs/ota/`](docs/ota/) — OTA design, verification evidence, and release pipeline
+- [`docs/transport/`](docs/transport/) — transport design (MQTT, device registration, device UUID)
 
 ## License
 

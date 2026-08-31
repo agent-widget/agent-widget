@@ -20,6 +20,7 @@ agent-widget 将一块 Waveshare ESP32-S3-Touch-LCD-3.5B 变成 AI 编码 Agent 
 | OTA 发布流程（GitHub Actions → GitHub Releases → 设备） | 已端到端验证（v2.0.0）—— 见 [`docs/ota/`](docs/ota/) |
 | 板卡约束调研（引脚、I2C、显示、构建配置） | 权威文档 —— 见 [`docs/hardware/board-spec-constraints.md`](docs/hardware/board-spec-constraints.md) |
 | MQTT 实验室（broker + 虚拟设备 + 自验证演示） | 已建成并通过代码评审 —— 见 [`experiments/mqtt-lab/README.zh-CN.md`](experiments/mqtt-lab/README.zh-CN.md)（21/21 检查） |
+| 设备注册 + 设备 UUID（单镜像烧录、MAC 白名单、动态签发专属凭据） | 设计 —— 见 [`docs/transport/device-registration-and-uuid.zh-CN.md`](docs/transport/device-registration-and-uuid.zh-CN.md) |
 | 生产固件（ESP-IDF） | 开发中 |
 | AgentStatus 契约（MQTT） | 草案在 `experiments/mqtt-lab/contracts/`；正式定案跟踪 [#4](https://github.com/agent-widget/agent-widget/issues/4) |
 
@@ -77,6 +78,7 @@ agent-widget/
 - [`docs/hardware/board-spec-constraints.md`](docs/hardware/board-spec-constraints.md) —— 权威板卡规格、引脚与构建约束
 - [`docs/ui/panel-ui-design.md`](docs/ui/panel-ui-design.md) —— 屏幕 UI 设计
 - [`docs/ota/`](docs/ota/) —— OTA 设计、验证证据与发布流程
+- [`docs/transport/`](docs/transport/) —— 传输设计（MQTT、设备注册、设备 UUID）
 
 ## 许可证
 

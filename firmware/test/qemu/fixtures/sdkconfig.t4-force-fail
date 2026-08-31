@@ -1,0 +1,5 @@
+# T4 fixture overlay: forces boot_health's self-test to fail unconditionally
+# so the device must call esp_ota_mark_app_invalid_rollback_and_reboot().
+# Applies on top of sdkconfig.defaults + sdkconfig.defaults.qemu (which already
+# sets CONFIG_AGENT_WIDGET_TEST_HOOKS=y). QEMU/CI fixture only.
+CONFIG_AGENT_WIDGET_SELFTEST_FORCE_FAIL=y

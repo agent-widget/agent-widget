@@ -1,0 +1,15 @@
+menu "OTA manager"
+
+    config AGENT_WIDGET_RELEASES_API_URL
+        string "GitHub Releases API URL (or local fixture equivalent)"
+        default "https://api.github.com/repos/agent-widget/agent-widget/releases/latest"
+        help
+            QEMU scenario builds override this with the local HTTPS fixture
+            server address (e.g. https://10.0.2.2:<port>/api/releases/latest)
+            via a per-scenario sdkconfig fragment.
+
+    config AGENT_WIDGET_MANIFEST_URL
+        string "Signed manifest.json URL (or local fixture equivalent)"
+        default "https://raw.githubusercontent.com/agent-widget/agent-widget/main/firmware/manifest.json"
+
+endmenu

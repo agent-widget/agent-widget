@@ -1,0 +1,3 @@
+#include "sdkconfig.defaults"
+#include "sdkconfig.defaults.qemu"
+CONFIG_AGENT_WIDGET_SELFTEST_FORCE_FAIL=y

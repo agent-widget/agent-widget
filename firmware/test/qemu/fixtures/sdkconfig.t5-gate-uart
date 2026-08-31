@@ -1,0 +1,6 @@
+# T5 fixture overlay: gates esp_ota_mark_app_valid_cancel_rollback() on a
+# "health-continue" UART command after all self-test items pass, so the
+# harness can hold the image in PENDING_VERIFY for a deterministic power-loss
+# window. Applies on top of sdkconfig.defaults + sdkconfig.defaults.qemu
+# (which already sets CONFIG_AGENT_WIDGET_TEST_HOOKS=y). QEMU/CI fixture only.
+CONFIG_AGENT_WIDGET_SELFTEST_GATE_UART=y

@@ -1,0 +1,53 @@
+menu "Agent Widget"
+
+    choice AGENT_WIDGET_PLATFORM
+        prompt "Target platform"
+        default AGENT_WIDGET_PLATFORM_BOARD
+        help
+            Selects exactly one connectivity/health adapter. QEMU has no Wi-Fi
+            emulation on ESP32-S3, so it uses OpenCores Ethernet instead; the
+            real board uses Wi-Fi. See codex-architecture.md section 1.
+
+        config AGENT_WIDGET_PLATFORM_BOARD
+            bool "Waveshare ESP32-S3-Touch-LCD-3.5B (Wi-Fi)"
+
+        config AGENT_WIDGET_PLATFORM_QEMU
+            bool "QEMU (OpenCores Ethernet)"
+    endchoice
+
+    config AGENT_WIDGET_CHECK_INTERVAL_SEC
+        int "OTA periodic check interval (seconds)"
+        default 3600
+        range 5 86400
+
+    config AGENT_WIDGET_SELFTEST_WINDOW_SEC
+        int "First-boot self-test deadline (seconds)"
+        default 30
+        range 3 300
+
+    config AGENT_WIDGET_TEST_HOOKS
+        bool "Enable destructive-test hooks (QEMU/CI only)"
+        depends on AGENT_WIDGET_PLATFORM_QEMU
+        default n
+        help
+            Compiles in deliberately-failing self-test and other destructive
+            test-only behavior. MUST be disabled for release/board builds;
+            the dependency on the QEMU platform makes it impossible to enable
+            in a board/release build.
+
+    config AGENT_WIDGET_SELFTEST_FORCE_FAIL
+        bool "Force self-test failure (T4 fixture)"
+        depends on AGENT_WIDGET_TEST_HOOKS
+        default n
+
+    config AGENT_WIDGET_SELFTEST_GATE_UART
+        bool "Gate mark-valid on a UART command (T5 fixture)"
+        depends on AGENT_WIDGET_TEST_HOOKS
+        default n
+        help
+            After the self-test items pass, wait for a "health-continue" UART
+            command before calling esp_ota_mark_app_valid_cancel_rollback().
+            Used to create a deterministic PENDING_VERIFY window for the
+            power-loss rollback drill (T5).
+
+endmenu

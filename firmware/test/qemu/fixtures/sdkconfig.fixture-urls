@@ -1,0 +1,7 @@
+# Points both OTA discovery channels at the local QEMU fixture_server.py
+# instance instead of GitHub. 10.0.2.2 is libslirp's NAT host alias (see
+# gen-test-pki.sh, which bakes this address into the fixture server cert's
+# SAN). Port must match the --port the harness passes to fixture_server.py.
+# QEMU/CI fixture only.
+CONFIG_AGENT_WIDGET_RELEASES_API_URL="https://10.0.2.2:8443/api/releases/latest"
+CONFIG_AGENT_WIDGET_MANIFEST_URL="https://10.0.2.2:8443/manifest.json"

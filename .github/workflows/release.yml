@@ -1,10 +1,12 @@
 name: Release firmware
 
-# 打 tag v*.*.*（如 v2.0.0）→ 自动构建固件 → 发布到 GitHub Releases → 更新 manifest.json
+# 打 tag v*.*.*（如 v3.0.0）→ 构建 ESP-IDF board 固件 → 签名（fail-closed）→
+# 发布到 GitHub Releases → 更新 manifest.json（sha256 + signature）。
 # 也可手动触发（需要 tag 已存在）。
 #
-# 构建：arduino-cli 本地编译（esp32 core v3.x + 自定义 OTA 双槽分区表），自包含、可复现。
-# 生产 AW-006 将替换 build 步骤为 ESP-IDF（idf.py build），其余发布逻辑不变。
+# AW-006 生产路径：ESP-IDF esp32s3 board 构建（Wi-Fi + SPIRAM，test hooks 编译
+# 排除）；OTA_SIGNING_KEY 私钥缺失则构建失败（绝不发布无签名固件）；发布前校验
+# resolved sdkconfig 无 TEST_HOOKS/QEMU。Arduino PoC（ota-sim）不再参与发布。
 on:
   push:
     tags:
@@ -12,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Firmware version, e.g. 2.0.0 (tag v<version> must exist on main)'
+        description: 'Firmware version, e.g. 3.0.0 (tag v<version> must exist on main)'
         required: true
 
 permissions:
@@ -21,7 +23,7 @@ permissions:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,82 +42,81 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Resolved: tag=$TAG version=$VERSION"
 
-      - name: Cache arduino core (re-runs)
-        uses: actions/cache@v4
+      - uses: espressif/esp-idf-cmake-action@v1
         with:
-          path: ~/.arduino15
-          key: arduino15-esp32-${{ runner.os }}-v1
+          esp_idf_version: v5.4
+          target: esp32s3
 
-      - name: Install arduino-cli and esp32 core
+      - name: Build board firmware (ESP-IDF, test hooks off)
         run: |
-          curl -fsSL https://github.com/arduino/arduino-cli/releases/download/v1.1.1/arduino-cli_1.1.1_Linux_64bit.tar.gz -o /tmp/arduino-cli.tar.gz
-          tar xzf /tmp/arduino-cli.tar.gz -C /usr/local/bin arduino-cli
-          arduino-cli config init --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
-          arduino-cli core update-index
-          arduino-cli core install esp32:esp32
+          cd firmware
+          idf.py -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.board" \
+            -DPROJECT_VER="${{ steps.ver.outputs.version }}" build
 
-      - name: Build firmware (arduino-cli, custom OTA partitions)
+      - name: Fail closed if test hooks leaked into the build
         run: |
-          cd ota-sim
-          ./build_arduino.sh "${{ steps.ver.outputs.version }}"
+          if grep -q 'CONFIG_AGENT_WIDGET_TEST_HOOKS=y' firmware/sdkconfig; then
+            echo "::error::CONFIG_AGENT_WIDGET_TEST_HOOKS is set in a release build — refusing to publish"
+            exit 1
+          fi
+          if grep -q 'CONFIG_AGENT_WIDGET_PLATFORM_QEMU=y' firmware/sdkconfig; then
+            echo "::error::QEMU platform leaked into a release build — refusing to publish"
+            exit 1
+          fi
+          echo "sdkconfig gate OK (board, hooks off)"
 
-      - name: Verify artifact
+      - name: Sign firmware (fail-closed on missing key)
+        id: sign
+        env:
+          OTA_SIGNING_KEY: ${{ secrets.OTA_SIGNING_KEY }}
         run: |
-          test -f ota-sim/dist/firmware-v${{ steps.ver.outputs.version }}.bin
-          ls -la ota-sim/dist/
-          SIZE=$(stat -c%s ota-sim/dist/firmware-v${{ steps.ver.outputs.version }}.bin)
+          set -euo pipefail
+          test -n "$OTA_SIGNING_KEY" || { echo "::error::OTA_SIGNING_KEY secret is not configured — refusing to publish an unsigned firmware"; exit 1; }
+          BIN=firmware/build/agent_widget.bin
+          test -f "$BIN"
+          echo "$OTA_SIGNING_KEY" > /tmp/ota_sign.key
+          chmod 600 /tmp/ota_sign.key
+          openssl dgst -sha256 -binary "$BIN" > /tmp/digest.bin
+          openssl pkeyutl -sign -inkey /tmp/ota_sign.key -pkeyopt digest:sha256 \
+            -in /tmp/digest.bin -out /tmp/sig.bin
+          SHA256="$(xxd -p -c 256 /tmp/digest.bin)"
+          SIG="$(base64 -w0 /tmp/sig.bin)"
+          SIZE="$(stat -c%s "$BIN")"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          echo "signature=$SIG" >> "$GITHUB_OUTPUT"
           echo "size=$SIZE" >> "$GITHUB_OUTPUT"
-          echo "Artifact size: $SIZE"
+          echo "signed ${SIZE} bytes; sha256=${SHA256:0:16}…"
+
+      - name: Verify signature round-trip
+        run: |
+          echo "${{ steps.sign.outputs.signature }}" | base64 -d > /tmp/sig.check.bin
+          openssl pkeyutl -verify -inkey /tmp/ota_sign.key -pkeyopt digest:sha256 \
+            -in /tmp/digest.bin -sigfile /tmp/sig.check.bin
+          echo "signature verified OK"
 
       - name: Create GitHub release and upload asset
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cd ota-sim/dist
-          ASSET="firmware-v${{ steps.ver.outputs.version }}.bin"
+          ASSET=firmware/build/agent_widget.bin
           if gh release view "${{ steps.ver.outputs.tag }}" >/dev/null 2>&1; then
             echo "release exists, uploading asset"
             gh release upload "${{ steps.ver.outputs.tag }}" "$ASSET" --clobber
           else
             gh release create "${{ steps.ver.outputs.tag }}" "$ASSET" \
               --title "${{ steps.ver.outputs.tag }}" \
-              --notes "Firmware ${{ steps.ver.outputs.version }} — auto-built by GitHub Actions (arduino-cli, esp32 core 3.x, OTA dual-slot partitions)." \
+              --notes "Firmware ${{ steps.ver.outputs.version }} — ESP-IDF board build, sha256 + RSA-2048 signed. Auto-built by GitHub Actions." \
               --target main
           fi
           echo "release_url=https://github.com/agent-widget/agent-widget/releases/tag/${{ steps.ver.outputs.tag }}" >> "$GITHUB_OUTPUT"
 
-      - name: Compute sha256 + sign firmware (AW-006 integrity metadata)
-        id: sign
-        env:
-          OTA_SIGNING_KEY: ${{ secrets.OTA_SIGNING_KEY }}
+      - name: Update manifest.json (integrity metadata)
         run: |
-          BIN="ota-sim/dist/firmware-v${{ steps.ver.outputs.version }}.bin"
-          if [[ -z "${OTA_SIGNING_KEY:-}" ]]; then
-            echo "::warning::OTA_SIGNING_KEY secret not set — publishing WITHOUT sha256/signature (devices with AW-006 firmware will reject this release)"
-            echo "has_sig=false" >> "$GITHUB_OUTPUT"
-          else
-            umask 077
-            KEYFILE="$RUNNER_TEMP/ota_signing_key.pem"
-            printf '%s' "$OTA_SIGNING_KEY" > "$KEYFILE"
-            OUT=$(./ota-sim/sign_firmware.sh "$BIN" "$KEYFILE")
-            echo "$OUT"
-            echo "sha256=$(echo "$OUT" | grep '^sha256=' | cut -d= -f2)" >> "$GITHUB_OUTPUT"
-            echo "signature=$(echo "$OUT" | grep '^signature=' | cut -d= -f2)" >> "$GITHUB_OUTPUT"
-            echo "has_sig=true" >> "$GITHUB_OUTPUT"
-            rm -f "$KEYFILE"
-          fi
-
-      - name: Update manifest.json (sha256 + signature integrity metadata)
-        run: |
-          SIZE=$(stat -c%s ota-sim/dist/firmware-v${{ steps.ver.outputs.version }}.bin)
-          URL="https://github.com/agent-widget/agent-widget/releases/download/${{ steps.ver.outputs.tag }}/firmware-v${{ steps.ver.outputs.version }}.bin"
-          if [[ "${{ steps.sign.outputs.has_sig }}" == "true" ]]; then
-            python3 ota-sim/update_manifest.py "${{ steps.ver.outputs.version }}" "$URL" "$SIZE" firmware/manifest.json \
-              "${{ steps.sign.outputs.sha256 }}" "${{ steps.sign.outputs.signature }}"
-          else
-            python3 ota-sim/update_manifest.py "${{ steps.ver.outputs.version }}" "$URL" "$SIZE" firmware/manifest.json
-          fi
+          URL="https://github.com/agent-widget/agent-widget/releases/download/${{ steps.ver.outputs.tag }}/agent_widget.bin"
+          python3 ota-sim/update_manifest.py "${{ steps.ver.outputs.version }}" "$URL" \
+            "${{ steps.sign.outputs.size }}" firmware/manifest.json \
+            "${{ steps.sign.outputs.sha256 }}" "${{ steps.sign.outputs.signature }}"
           git fetch origin main
           git checkout main
           git pull --ff-only origin main
@@ -124,7 +125,7 @@ jobs:
             echo "manifest unchanged"
           else
             git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-              commit -m "chore(ota): manifest add v${{ steps.ver.outputs.version }} [skip ci]"
+              commit -m "chore(ota): manifest add v${{ steps.ver.outputs.version }} (sha256+signature) [skip ci]"
             git push origin main
             echo "manifest committed"
           fi
@@ -134,4 +135,5 @@ jobs:
           echo "=== RELEASE READY ==="
           echo "tag:      ${{ steps.ver.outputs.tag }}"
           echo "release:  ${{ steps.release.outputs.release_url }}"
-          echo "device OTA: 设备启动后将自动从 GitHub Releases API 发现此版本并升级"
+          echo "sha256:   ${{ steps.sign.outputs.sha256 }}"
+          echo "device OTA: 固件带 sha256 + RSA 签名，设备验签后安装；PENDING_VERIFY 自检决定 valid/回滚"

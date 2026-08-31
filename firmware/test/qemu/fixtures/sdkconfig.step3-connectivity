@@ -1,0 +1,9 @@
+# Step 3 connectivity-check override (AW-006 session scope B). Points OTA
+# discovery at the local HTTPS fixture server instead of GitHub, per the
+# Kconfig help text in components/ota_manager/Kconfig ("QEMU scenario builds
+# override this... via a per-scenario sdkconfig fragment"). 10.0.2.2 is the
+# libslirp NAT host alias (see firmware/test/qemu/scripts/gen-test-pki.sh).
+# Temporary for this session's connectivity verification; steps 4-8 will add
+# real per-scenario configs under this directory.
+CONFIG_AGENT_WIDGET_RELEASES_API_URL="https://10.0.2.2:8443/api/releases/latest"
+CONFIG_AGENT_WIDGET_MANIFEST_URL="https://10.0.2.2:8443/manifest.json"

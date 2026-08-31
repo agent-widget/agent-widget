@@ -1,0 +1,16 @@
+# QEMU-only overlay: OpenCores Ethernet instead of Wi-Fi, short intervals for
+# fast destructive-test iteration, and the test-hook gate for forced self-test
+# failure (must never be enabled in a board/release build).
+CONFIG_AGENT_WIDGET_PLATFORM_QEMU=y
+CONFIG_AGENT_WIDGET_PLATFORM_BOARD=n
+
+CONFIG_ETH_USE_OPENETH=y
+CONFIG_ETH_ENABLED=y
+
+CONFIG_AGENT_WIDGET_SELFTEST_WINDOW_SEC=10
+CONFIG_AGENT_WIDGET_CHECK_INTERVAL_SEC=10
+
+CONFIG_AGENT_WIDGET_TEST_HOOKS=y
+
+# QEMU has no display/PSRAM/touch peripherals to emulate for this board.
+CONFIG_SPIRAM=n

@@ -1,0 +1,12 @@
+menu "Connectivity (board Wi-Fi credentials)"
+    depends on AGENT_WIDGET_PLATFORM_BOARD
+
+    config AGENT_WIDGET_WIFI_SSID
+        string "Wi-Fi SSID"
+        default ""
+
+    config AGENT_WIDGET_WIFI_PASSWORD
+        string "Wi-Fi password"
+        default ""
+
+endmenu

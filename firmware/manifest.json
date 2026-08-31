@@ -4,14 +4,46 @@
   "notes": "模拟验证期发布清单。生产 AW-006 将改为 GitHub Releases API（CI 上传，二进制不入 git）。",
   "releases": [
     {
+      "version": "3.0.3",
+      "url": "https://raw.githubusercontent.com/agent-widget/agent-widget/main/firmware/releases/v3.0.3.bin",
+      "size": 1075600,
+      "sha256": "c0b3f52bc080a8b48a6a03d0ca7537aa67962e819c03bed9248b21944113f9ca",
+      "signature": "mJm+k8SMN6aXvfd5bdknPOgif72G4o5eXgTvKf4tf9Th1EqB2+ymZ6FavjoTaqsQlvb41qp6IVkQaBWe0WtRzuB1f0jUQ3Mmr6DUfY0ffWeDSoB/5HenksdvDwiuFstWivC5EnntMnQGAqxv9588v+YwlD4NN4lw6tikQ/zcmUP8FqifncKzAve2As/PsM6uWeh33yqHCpW1hmBIQ5F8v6dUl49YDZMA5rrsK2xKP/tfylfAk0NgGvSTydMADRHOB0jU/XsSfAj+8hjsJ0nLS1670lrt/4tkAVITs6O2SellL/vu8BTUxMOR/g4/RCyY20CmnF/Sz3sVD6dT8fiS5w=="
+    },
+    {
+      "version": "3.0.2",
+      "url": "https://raw.githubusercontent.com/agent-widget/agent-widget/main/firmware/releases/v3.0.2.bin",
+      "size": 1075744,
+      "sha256": "79f21693a4412a22dc2a1ca1c0fc50b3f72f920dcee6130942eead30bce2188a",
+      "signature": "rH+M+cKAAdsOCylHeNyLJfntEkQJeboqlPILqMcQw/VFkR0h2TR5K3CYTofyNoFmRHv6Ps9JCGWyW02aY4lF5KZLoKmt5TUIvBiZdbG+nOf1FmHOqTZEe1n2KyUxUa9QmKHs/0+fiNN4XDbjRNb6V9zjx+xggibLhhN+GcOCGf0EhxY6riUdbgMCXU0Y0Q5swhnjnXgtXbR8MuWivFEilyypxoBhvxvKAPE1XMExPF3+JUPprK0khA8z6wBLOikevNIGVlOo1SQJNddpy6y5XsAtdaB+u4f8uiZskH9VyCb1FOhuxMfjh9UDoHzB3yxfoibeS4oFXJAqoOaz9+AB6A=="
+    },
+    {
+      "version": "3.0.1",
+      "url": "https://raw.githubusercontent.com/agent-widget/agent-widget/main/firmware/releases/v3.0.1.bin",
+      "size": 1075744,
+      "sha256": "4bae73ba6deb81e655b65d909467a3489932c6978e3313a6b40482ce6f309ec1",
+      "signature": "pgshhlXIS4fi19UHzXi8ovRjkxCpUeSZz2NAG/+TZHslrxziKXLpCFZbI5+6TZkOtk6moy+tGP/yk8B26bLDFCdUUa690NBxBt/JIgm0/Mjix5zLJ9vnc3agdos9yUTDXIQFiXYMf3WIJ/OfetsQ8nUFiPVWS8Whr212UPqR1DfkvQHtQcHGspvzopSeP/wzDC/6rjgM/ai6sUZPvnxdl2tpDAd4tgdnlL6fW1qeePAMlRLaWXncslLywVd8Xox4uO2lFdRdn7eXSKU0UjP06BWS+TGLYExKe+vOvyw2O/b7zBbE1ghRPe9X0O0KMyd4B0Z+eVAh+oPw9hDq9nMn4w=="
+    },
+    {
+      "version": "3.0.0",
+      "url": "https://raw.githubusercontent.com/agent-widget/agent-widget/main/firmware/releases/v3.0.0.bin",
+      "size": 1075744,
+      "sha256": "fc321f6bf72392cd85e8b6287babcba08ebd8c2c52c2493a25f84f1f2a8320d8",
+      "signature": "erRMfaHiNOaaXpA2uqSdCwvAPbz2Rn1Z0gzPvxEAR2z2a81Vnapcu/G4I+vYbtymF3mj51VhTJV1YnucyTLcaatJe1K2pKy4jAK8dpHgep/8jGneQKbXFynP3CScgFZ8WOULgNUhFvCkuZ+ET52nf6Vhj3sPAIChUN2xO1cUCq54QVTnxgoy0ZS6IBq/rfUzucrarSGp8VCQeRYc9QShFckI/x7X+qMGAVf0Lz7Y5TBWPcVGPCR/7LYME16TcDHvosiA9/4A4/aLjmywXk+xYPIu/br+f4ajizYl34E0Qz6scpVD3csAf+sW8cL/tU5mqhPbu1J6+04qT1RZwFVj4Q=="
+    },
+    {
       "version": "2.0.0",
       "url": "https://github.com/agent-widget/agent-widget/releases/download/v2.0.0/firmware-v2.0.0.bin",
-      "size": 1026560
+      "size": 1026560,
+      "sha256": "3e3eadc1d54b9759579fb07bb21c84564f18f206bf5d737b8a6b4ba03134f3c4",
+      "signature": "NNj4PuMkG8z4RXmDvyLUAptCDuQXQunNqN3m7VY50af+zCEmAbOsKCynH+3ac8aTiuLLGTWxdATDdKrSIZ8V8nN/8D5478i5++rFpkb2JDtHjqEQxO/S7WrqNGkGzN0zV0IjQcbqj71jnjbomWKSVcXJd1esmcgOoeJ4INvQ7uwT3lj6IXwFWNNxBbB6Glw151WzRrDZBA6cLMbPGWNsYfNENKwhJtihnsaUgr7b1EyZKIAtZm1/PiGWcKGt1pTHsmvhIA3LPObuz56ZuPRCF6Pan5QlAv7q2XWkBYG6bwms0uO1+jZhYpuJmBHOyKORsw0qU56W1FvpJzhLm4gzSQ=="
     },
     {
       "version": "1.0.0",
       "url": "https://raw.githubusercontent.com/agent-widget/agent-widget/main/firmware/releases/v1.0.0.bin",
-      "size": 1035552
+      "size": 1035552,
+      "sha256": "1ae3f29bed4f48d3d06d125b700d5b9d4d1f9dce2825cacbae546cd4b0deb462",
+      "signature": "hb4ndLlIvBfpeTDVsJBD4LbZsaN15iceDqZxOgKbBh412ZXSrSCxN5qCGOKHTfcsxZcT9HM6P2BbK/MqYTuTY7jHlflyKZJn+1jwyNTeUKPDoN2wWQWfZQbe/g7l7PkY+olMyV4+VCq7VIjRgk3Aez2gvNWlXMzjwS7WBULqtRvj6GdyN5OeWKble0/pK1NFxd8j+Mn468cpTPMpzucAcuf24TgC8QKpRNJn2BQ6peL/Nwlq0jV6WJhe0CpzebHHE1FKZXlJWZdHFozwREel+gt7oFnRqIC4u9RRqanMcE2rdkGMr6szr5k0wbyt+r5JCArwSXCL0FxhLZADH0I5Yw=="
     }
   ]
 }

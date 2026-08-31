@@ -85,11 +85,37 @@ jobs:
           fi
           echo "release_url=https://github.com/agent-widget/agent-widget/releases/tag/${{ steps.ver.outputs.tag }}" >> "$GITHUB_OUTPUT"
 
-      - name: Update manifest.json (fallback channel)
+      - name: Compute sha256 + sign firmware (AW-006 integrity metadata)
+        id: sign
+        env:
+          OTA_SIGNING_KEY: ${{ secrets.OTA_SIGNING_KEY }}
+        run: |
+          BIN="ota-sim/dist/firmware-v${{ steps.ver.outputs.version }}.bin"
+          if [[ -z "${OTA_SIGNING_KEY:-}" ]]; then
+            echo "::warning::OTA_SIGNING_KEY secret not set — publishing WITHOUT sha256/signature (devices with AW-006 firmware will reject this release)"
+            echo "has_sig=false" >> "$GITHUB_OUTPUT"
+          else
+            umask 077
+            KEYFILE="$RUNNER_TEMP/ota_signing_key.pem"
+            printf '%s' "$OTA_SIGNING_KEY" > "$KEYFILE"
+            OUT=$(./ota-sim/sign_firmware.sh "$BIN" "$KEYFILE")
+            echo "$OUT"
+            echo "sha256=$(echo "$OUT" | grep '^sha256=' | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+            echo "signature=$(echo "$OUT" | grep '^signature=' | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+            echo "has_sig=true" >> "$GITHUB_OUTPUT"
+            rm -f "$KEYFILE"
+          fi
+
+      - name: Update manifest.json (sha256 + signature integrity metadata)
         run: |
           SIZE=$(stat -c%s ota-sim/dist/firmware-v${{ steps.ver.outputs.version }}.bin)
           URL="https://github.com/agent-widget/agent-widget/releases/download/${{ steps.ver.outputs.tag }}/firmware-v${{ steps.ver.outputs.version }}.bin"
-          python3 ota-sim/update_manifest.py "${{ steps.ver.outputs.version }}" "$URL" "$SIZE" firmware/manifest.json
+          if [[ "${{ steps.sign.outputs.has_sig }}" == "true" ]]; then
+            python3 ota-sim/update_manifest.py "${{ steps.ver.outputs.version }}" "$URL" "$SIZE" firmware/manifest.json \
+              "${{ steps.sign.outputs.sha256 }}" "${{ steps.sign.outputs.signature }}"
+          else
+            python3 ota-sim/update_manifest.py "${{ steps.ver.outputs.version }}" "$URL" "$SIZE" firmware/manifest.json
+          fi
           git fetch origin main
           git checkout main
           git pull --ff-only origin main

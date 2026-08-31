@@ -19,9 +19,26 @@ agent-widget 将一块 Waveshare ESP32-S3-Touch-LCD-3.5B 变成 AI 编码 Agent 
 | UI 设计（Panel 轮播、可展开 Agent 卡片、更新覆盖层） | 已定稿 —— 见 [`docs/ui/panel-ui-design.md`](docs/ui/panel-ui-design.md) |
 | OTA 发布流程（GitHub Actions → GitHub Releases → 设备） | 已端到端验证（v2.0.0）—— 见 [`docs/ota/`](docs/ota/) |
 | 板卡约束调研（引脚、I2C、显示、构建配置） | 权威文档 —— 见 [`docs/hardware/board-spec-constraints.md`](docs/hardware/board-spec-constraints.md) |
+| MQTT 实验室（broker + 虚拟设备 + 自验证演示） | 已建成并通过代码评审 —— 见 [`experiments/mqtt-lab/README.zh-CN.md`](experiments/mqtt-lab/README.zh-CN.md)（21/21 检查） |
 | 生产固件（ESP-IDF） | 开发中 |
-| AgentStatus 传输（MQTT） | 规划中 |
+| AgentStatus 契约（MQTT） | 草案在 `experiments/mqtt-lab/contracts/`；正式定案跟踪 [#4](https://github.com/agent-widget/agent-widget/issues/4) |
 
+
+## 项目看板
+
+工作以 GitHub Issues 跟踪（与本地 `docs.local/tasks.json` 镜像一致）：
+
+| Issue | 里程碑 | 优先级 |
+|---|---|---|
+| [#1](https://github.com/agent-widget/agent-widget/issues/1) AW-001 仓库知识与操作契约整合 | M1 | p2 |
+| [#2](https://github.com/agent-widget/agent-widget/issues/2) AW-002 真机 ESP-IDF 官方示例 | M1 | p1 |
+| [#3](https://github.com/agent-widget/agent-widget/issues/3) AW-003 最小 ESP-IDF 设备健康基线 | M1 | p1 |
+| [#4](https://github.com/agent-widget/agent-widget/issues/4) AW-004 AgentStatus v1 经 MQTT（契约 + 真机投递） | M2 | p0 |
+| [#5](https://github.com/agent-widget/agent-widget/issues/5) AW-005 Panel UI + 真机响应性测量 | M3 | p1 |
+| [#6](https://github.com/agent-widget/agent-widget/issues/6) AW-006 GitHub Release OTA 流水线 + 回滚演练 | M4 | p0 |
+| [#7](https://github.com/agent-widget/agent-widget/issues/7) AW-007 传输方案替代评估 | M2 | p2 |
+
+里程碑：**M1** 基础与硬件基线 · **M2** MQTT 传输与 AgentStatus 契约 · **M3** Panel UI 与 PC 模拟器 · **M4** OTA 流水线与发布流程
 ## 首选硬件
 
 当前硬件目标为 **Waveshare ESP32-S3-Touch-LCD-3.5B**（SKU 31137；SKU 31334 "3.5B-C" 带外壳与摄像头）。

@@ -22,9 +22,26 @@ The project's end goal is a repeatable, real-device demo:
 | UI design (Panel carousel, expandable agent cards, update overlay) | Specified — see [`docs/ui/panel-ui-design.md`](docs/ui/panel-ui-design.md) |
 | OTA release pipeline (GitHub Actions → GitHub Releases → device) | Verified end-to-end (v2.0.0) — see [`docs/ota/`](docs/ota/) |
 | Board constraint research (pins, I2C, display, build config) | Authoritative — see [`docs/hardware/board-spec-constraints.md`](docs/hardware/board-spec-constraints.md) |
+| MQTT lab (broker + virtual devices + self-verifying demo) | Built and code-reviewed — see [`experiments/mqtt-lab/README.md`](experiments/mqtt-lab/README.md) (21/21 checks) |
 | Production firmware (ESP-IDF) | In development |
-| AgentStatus transport (MQTT) | Planned |
+| AgentStatus contract (MQTT) | Lab draft in `experiments/mqtt-lab/contracts/`; ratification tracked in [#4](https://github.com/agent-widget/agent-widget/issues/4) |
 
+
+## Project board
+
+Work is tracked as GitHub issues (mirrored from the local `docs.local/tasks.json`):
+
+| Issue | Milestone | Priority |
+|---|---|---|
+| [#1](https://github.com/agent-widget/agent-widget/issues/1) AW-001 Consolidate repository knowledge and operating contract | M1 | p2 |
+| [#2](https://github.com/agent-widget/agent-widget/issues/2) AW-002 ESP-IDF example on real hardware | M1 | p1 |
+| [#3](https://github.com/agent-widget/agent-widget/issues/3) AW-003 Minimal ESP-IDF device health baseline | M1 | p1 |
+| [#4](https://github.com/agent-widget/agent-widget/issues/4) AW-004 AgentStatus v1 over MQTT (contract + real-device delivery) | M2 | p0 |
+| [#5](https://github.com/agent-widget/agent-widget/issues/5) AW-005 Panel UI + real-device responsiveness | M3 | p1 |
+| [#6](https://github.com/agent-widget/agent-widget/issues/6) AW-006 GitHub Release OTA pipeline + rollback drills | M4 | p0 |
+| [#7](https://github.com/agent-widget/agent-widget/issues/7) AW-007 Transport alternatives evaluation | M2 | p2 |
+
+Milestones: **M1** Foundation & hardware baseline · **M2** MQTT transport & AgentStatus contract · **M3** Panel UI & PC simulator · **M4** OTA pipeline & release process
 ## Preferred hardware
 
 The current hardware target is the **Waveshare ESP32-S3-Touch-LCD-3.5B**

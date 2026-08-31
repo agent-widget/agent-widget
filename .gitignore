@@ -23,6 +23,10 @@ sim/**/bin/
 ota-verify/
 sim/
 
+# ota-sim local build outputs (arduino-cli)
+ota-sim/build_tmp/
+ota-sim/dist/
+
 # Local experiments and captured device evidence
 experiments/local/
 experiments/output/

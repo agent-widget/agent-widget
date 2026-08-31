@@ -12,7 +12,7 @@ services:
       - "9001:9001"   # MQTT over WebSocket
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
-      - ./acl.conf:/mosquitto/config/acl.conf:ro
+      - ./state/acl.conf:/mosquitto/config/acl.conf:ro
       - ./certs:/mosquitto/config/certs:ro
       - ./state/passwd:/mosquitto/config/passwd
       - ./state/data:/mosquitto/data

@@ -75,7 +75,10 @@ def main():
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=1883)
     ap.add_argument("--tls", action="store_true")
-    ap.add_argument("--ca", default="../broker/certs/ca.crt")
+    ap.add_argument("--ca",
+                    default=os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                         "..", "broker", "certs", "ca.crt"),
+                    help="CA cert for TLS (default: relative to this script)")
     ap.add_argument("--target", required=True,
                     choices=["broadcast", "device", "group", "canary"])
     ap.add_argument("--version", default="3.1.0")
@@ -86,10 +89,7 @@ def main():
     ap.add_argument("--device-id", default="", help="target device")
     ap.add_argument("--group", default="", help="target cohort group")
     ap.add_argument("--percent", type=int, default=40, help="canary percentage")
-    ap.add_argument("--fleet", default=",".join(FLEET),
-                    help="device list used for canary bucket math")
     args = ap.parse_args()
-    fleet = [d.strip() for d in args.fleet.split(",") if d.strip()]
 
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,
                          client_id="lab-server-ota", protocol=mqtt.MQTTv311)
@@ -125,16 +125,17 @@ def main():
             log("SERVER", c(f"group -> {topic}: v{args.version} id {ann_id}",
                             "magenta"))
         elif args.target == "canary":
-            groups = canary_groups_for_percent(args.percent, fleet)
-            chosen = {d for d in fleet if canary_bucket(d) in
-                      {int(g.split("-")[1]) for g in groups}}
+            groups = canary_groups_for_percent(args.percent)
+            chosen_buckets = {int(g.split("-")[1]) for g in groups}
+            chosen = {d for d in FLEET if canary_bucket(d) in chosen_buckets}
             for g in groups:
                 topic = ota_group_topic(g)
                 client.publish(topic, json.dumps(payload), qos=1, retain=False)
                 log("SERVER", c(f"canary -> {topic}: v{args.version} id {ann_id}",
                                 "magenta"))
-            log("SERVER", f"canary {args.percent}% covers buckets {groups} -> "
-                          f"devices: {', '.join(sorted(chosen))}")
+            log("SERVER", f"canary {args.percent}% selects buckets {groups} -> "
+                          f"actual coverage {len(chosen)}/{len(FLEET)} devices: "
+                          f"{', '.join(sorted(chosen))}")
     finally:
         time.sleep(0.3)
         client.loop_stop()

@@ -8,10 +8,10 @@
   "required": ["version", "url", "sha256", "signature", "min_version", "id"],
   "properties": {
     "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$", "description": "New firmware version (semver-ish)" },
-    "url": { "type": "string", "minLength": 1, "description": "HTTPS firmware binary URL (GitHub Releases in production)" },
+    "url": { "type": "string", "pattern": "^https://", "description": "HTTPS firmware binary URL (GitHub Releases in production)" },
     "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "sha256 of the firmware binary" },
-    "signature": { "type": "string", "minLength": 1, "description": "base64 RSA signature over the sha256" },
+    "signature": { "type": "string", "pattern": "^[A-Za-z0-9+/]+={0,2}$", "description": "base64 RSA signature over the sha256" },
     "min_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$", "description": "Anti-rollback floor: device refuses if current < min_version" },
-    "id": { "type": "string", "minLength": 1, "description": "Notification id for dedupe / diagnostics" }
+    "id": { "type": "string", "minLength": 1, "description": "Notification id for dedupe / diagnostics. REQUIRED in this draft because the lab device dedupes by id; the design doc (docs/ota/11) lists it as optional — to be decided when AW-004 ratifies the contract (recommendation: keep required)." }
   }
 }

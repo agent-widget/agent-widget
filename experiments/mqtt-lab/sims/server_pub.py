@@ -117,7 +117,10 @@ def main():
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=1883)
     ap.add_argument("--tls", action="store_true")
-    ap.add_argument("--ca", default="../broker/certs/ca.crt")
+    ap.add_argument("--ca",
+                    default=os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                         "..", "broker", "certs", "ca.crt"),
+                    help="CA cert for TLS (default: relative to this script)")
     ap.add_argument("--agents", default=",".join(DEFAULT_AGENTS),
                     help="comma-separated agent ids")
     ap.add_argument("--state", choices=["IDLE", "RUNNING", "BLOCKED", "DONE",

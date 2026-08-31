@@ -2,7 +2,7 @@
 
 A local MQTT test service that reproduces the **future production MQTT
 environment** of the agent-widget project as closely as a single machine
-allows. It is the test bed for [AW-004](../docs.local/session/plan.md)
+allows. It is the test bed for [AW-004](../../docs.local/session/plan.md)
 (`AgentStatus` v1 delivery over MQTT) and the OTA notification channel
 ([docs/ota/11-ota-notification-mqtt.md](../../docs/ota/11-ota-notification-mqtt.md)),
 which ride the same broker.
@@ -34,7 +34,7 @@ Production properties this lab reproduces:
 | Broker | mosquitto-class broker | `eclipse-mosquitto:2` in Docker |
 | TLS | listener with real CA | self-signed local CA on port 8883 (server-auth) |
 | Auth | per-role / per-device credentials | `server` operator + one user per device (username == deviceId) |
-| Authorization | topic ACLs | `broker/acl.conf`: devices locked to their own topics |
+| Authorization | topic ACLs (per-device cohort, generated) | `broker/state/acl.conf` from `acl.template.conf` + `gen-acl.sh` |
 | Status contract | `AgentStatus` v1 (state codes, language-independent) | `contracts/agent-status-v1.schema.json`, validated on publish and receive |
 | OTA trigger | metadata only over MQTT | `contracts/ota-announce-v1.schema.json` (same fields as the design doc) |
 | Delivery | QoS 1, retained broadcast | QoS 1 everywhere; `ota/announce` retained, targeted/group non-retained |
@@ -112,11 +112,22 @@ Any standard MQTT client can also join: `tcp://127.0.0.1:1883`,
 | `device/{deviceId}/ota/result` | device → server | QoS1, retained | `device-ota-result-v1` |
 
 Canary cohort: `hash(deviceId) % 5` → `canary-0..canary-4`. A device
-subscribes to its own bucket; the operator publishes to the buckets covering
-the desired percentage.
+subscribes to its own bucket plus the `stable` group; the operator publishes
+to the `ceil(buckets × percent / 100)` lowest-numbered buckets covering the
+desired percentage. Actual device coverage depends on the hash distribution
+and is reported by `ota_pub.py`.
 
-Credentials (LOCAL TEST ONLY — never reuse): `server` / `srv-dev-pass` and
-`<deviceId>` / `dev-test-pass` (provisioned by `scripts/start-broker.sh`).
+Credentials (LOCAL TEST ONLY — never reuse): the operator uses
+`server` / `srv-dev-pass`; every device gets its OWN random secret, generated
+by `scripts/start-broker.sh` and stored in `broker/state/device-creds.env`
+(gitignored). The device sim reads its secret from there automatically.
+Add a new device with `scripts/add-device-user.sh <deviceId> [extra-groups...]`.
+
+Authorization: `scripts/gen-acl.sh` renders `broker/state/acl.conf` from
+`broker/acl.template.conf` (global patterns: own-targeted OTA, own telemetry,
+agent statuses, broadcast) plus one `user <deviceId>` block per device listing
+exactly the cohort topics that device may subscribe to. Devices are NOT given
+generic `ota/group/+` access — cohort membership is enumerated per device.
 
 ## 5. What `demo.py` verifies
 
@@ -128,16 +139,20 @@ Credentials (LOCAL TEST ONLY — never reuse): `server` / `srv-dev-pass` and
    persistent session and installed on reconnect (SIGSTOP/SIGCONT injection)
 6. retained broadcast: a late-joining device installs the announced version
    and renders the retained statuses; it misses non-retained canary/group/targeted
-7. recall guards: older announce rejected (anti-downgrade), upgrade above a
-   `min_version` wall rejected (anti-rollback floor)
+7. recall guards: an older announce is rejected by EVERY device
+   (anti-downgrade), an upgrade above a `min_version` wall is rejected by
+   EVERY device (anti-rollback floor)
 8. rollback drill: a device with failing self-test rolls back and keeps its
    firmware version
+9. ACL negative probes: a device credential cannot write another device's
+   telemetry or subscribe to another device's targeted/cohort topics
 
 Exit code 0 = all checks passed. Device logs land in `logs/<deviceId>.log`.
 
-`demo.py` starts by clearing every retained message from earlier runs (empty
-retained publishes on the status/announce/telemetry/result topics), so each
-run is judged against a fresh broker state and never against leftovers.
+`demo.py` starts by clearing the lab-owned retained topics (default agents +
+fleet + the broadcast topic) with zero-length retained publishes, after the
+collector's subscriptions are acked, so each run is judged against a fresh
+broker state and never against leftovers.
 
 ## 6. Layout
 
@@ -145,7 +160,7 @@ run is judged against a fresh broker state and never against leftovers.
 mqtt-lab/
 ├── broker/
 │   ├── mosquitto.conf       # production-like broker config
-│   ├── acl.conf             # per-role / per-device ACLs
+│   ├── acl.template.conf   # ACL template; rendered per-device by gen-acl.sh
 │   ├── docker-compose.yml   # eclipse-mosquitto container
 │   └── scripts/gen-certs.sh # local CA + broker cert for 8883
 ├── contracts/               # JSON Schemas (drafts feeding AW-004)
@@ -171,5 +186,12 @@ gitignored and stay local.
 - `url`/`sha256`/`signature` in OTA announces are structurally valid
   placeholders; the firmware download is simulated (opt-in `--check-url`
   does a HEAD against the real GitHub URL).
+- MQTT 3.1.1 Last Will is fixed at connect time: the LWT telemetry `version`
+  can be stale after an OTA install. The retained online telemetry is always
+  refreshed on install, so fleet-visible state stays correct; the LWT payload
+  is only a crash signal.
+- `mosquitto` does not bind client_id to the authenticated user by default;
+  production should bind device identity to client ID (mutual TLS or an auth
+  plugin) — the lab ACLs are username-based.
 - This is local test infrastructure: the schemas here are inputs to AW-004,
   and AW-004 owns the ratified `AgentStatus` contract in `protocols/`.

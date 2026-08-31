@@ -21,11 +21,37 @@ DEFAULT_PORT = 1883
 TLS_PORT = 8883
 KEEPALIVE = 10
 
-# Test-only credentials. The broker (broker/state/passwd) is provisioned by
-# scripts/start-broker.sh with these same values. Local test only.
+# Test-only operator credentials. The broker (broker/state/passwd) is
+# provisioned by scripts/start-broker.sh with this value. Local test only.
 SERVER_USER = "server"
 SERVER_PASS = "srv-dev-pass"
-DEVICE_PASS = "dev-test-pass"
+# Device secrets are NOT shared: scripts/start-broker.sh generates one random
+# password per device and stores it in broker/state/device-creds.env
+# (gitignored). load_device_password() resolves a device's own secret.
+DEFAULT_CREDS_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "broker", "state", "device-creds.env",
+)
+
+
+def load_device_password(device_id, creds_file=DEFAULT_CREDS_FILE):
+    """Return this device's per-device secret from broker/state/device-creds.env.
+
+    Raises FileNotFoundError with a fix hint if the device is not provisioned.
+    """
+    if os.path.exists(creds_file):
+        with open(creds_file) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                dev, _, pw = line.partition("=")
+                if dev == device_id and pw:
+                    return pw
+    raise FileNotFoundError(
+        f"no credential for device '{device_id}' in {creds_file} — "
+        f"run scripts/add-device-user.sh {device_id} (then start the broker)"
+    )
 
 # Default fleet: stable per-device ids (simulate MAC-derived deviceId).
 FLEET = [
@@ -84,15 +110,18 @@ def canary_bucket(device_id: str, buckets: int = 5) -> int:
     return int(hashlib.sha256(device_id.encode("utf-8")).hexdigest(), 16) % buckets
 
 
-def canary_groups_for_percent(percent: int, fleet, buckets: int = 5) -> list:
-    """Buckets that cover the requested canary percentage of the fleet."""
-    included = max(1, round(len(fleet) * percent / 100.0))
-    buckets_included = set()
-    for dev in fleet:
-        b = canary_bucket(dev, buckets)
-        if len(buckets_included) < included:
-            buckets_included.add(b)
-    return [f"canary-{b}" for b in sorted(buckets_included)]
+def canary_groups_for_percent(percent: int, buckets: int = 5) -> list:
+    """Canary buckets covering `percent`% of the fleet.
+
+    Deterministic: ceil(buckets * percent / 100) lowest-numbered buckets are
+    selected. 0% -> [], 100% -> all buckets. Coverage in DEVICES is then a
+    function of the hash distribution (callers should assert on the actual
+    device set, not assume an exact device count).
+    """
+    percent = max(0, min(100, int(percent)))
+    n = (buckets * percent + 99) // 100  # ceil(buckets * percent / 100)
+    n = max(0, min(buckets, n))
+    return [f"canary-{i}" for i in range(n)]
 
 
 def version_tuple(v: str):

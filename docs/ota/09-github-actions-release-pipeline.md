@@ -1,7 +1,7 @@
 # 09-GitHub Actions release pipeline（已配置）
 
 > 日期: 2026-08-30
-> 状态: ✅ 已推送仓库（commit 308accd）；验证触发需打 tag（见文末「如何触发」）
+> 状态: ✅ 已推送并**验证通过**（run #33344266887 success，2026-08-30）：推 tag v2.0.0 → Actions 自动构建（arduino-cli）→ 创建 Release + 上传 firmware-v2.0.0.bin（1,026,560 B，magic 0xE9）→ manifest 自动更新。设备模拟端已确认走 GitHub Releases API 通道完成 OTA 升级（V1.0.0 → V2.0.0）。
 
 ---
 
@@ -24,7 +24,9 @@
 |---|---|
 | `.github/workflows/release.yml` | 触发：push tag `v*` 或手动 workflow_dispatch；用 GITHUB_TOKEN（无需用户凭据） |
 | `ota-sim/sketch_gh_ota.ino` | 版本感知 OTA 客户端源（Arduino PoC，入库供 CI 构建） |
-| `ota-sim/build_gh.py` | Wokwi 云构建脚本（`python3 build_gh.py <ver> <target> <out.bin>`） |
+| `ota-sim/build_arduino.sh` | arduino-cli 本地编译（esp32 core 3.x + OTA 双槽分区表；`./build_arduino.sh <ver>`） |
+| `ota-sim/custom_partitions.csv` | OTA 分区表（nvs/otadata/app0/app1/spiffs） |
+| `ota-sim/build_gh.py` | （备用）Wokwi 云构建脚本 |
 | `ota-sim/update_manifest.py` | 更新 manifest.json（新增/排序/替换条目） |
 | `ota-sim/README.md` | 使用说明 |
 
@@ -45,10 +47,12 @@ git tag v3.0.0 && git push origin v3.0.0
 - 仓库的 `firmware/releases/*.bin`（raw 直链）与 manifest 仍保留为回退通道；Releases 发布后设备优先走 Releases API。生产期删除 raw 通道 + `.gitignore` 例外。
 - Actions 运行状态可在仓库 Actions 页查看；release 结果公开可查（`GET /repos/agent-widget/agent-widget/releases`）。
 
-## 五、验证方式
+## 五、验证结果（2026-08-30 已执行）
 
-打一个 tag（如 `v2.0.0`）触发 workflow，然后检查：
-1. Actions 运行变绿
-2. `https://github.com/agent-widget/agent-widget/releases` 出现 v2.0.0 + firmware-v2.0.0.bin 资产
-3. manifest.json 自动更新（新增 v2.0.0 条目）
-4. （可选）重新跑 Wokwi 模拟：设备将打印 `[OTA] Channel: GitHub Releases API`（不再回退 manifest）
+✅ 推 tag v2.0.0 → run #33344266887 **success**：
+1. Actions 构建固件（arduino-cli，含 OTA 双槽分区表）
+2. Release v2.0.0 发布，资产 firmware-v2.0.0.bin（1,026,560 B，magic 0xE9，sha256 3e3eadc1…）
+3. manifest.json 自动更新（releases 列表：2.0.0, 1.0.0，URL 指向 Release 下载）
+4. Wokwi 模拟端确认 `[OTA] Channel: GitHub Releases API` → 下载 Release 资产 → Update SUCCESS → 重启 V2.0.0 → `No update needed`（模拟串口证据：`wokwi-run/serial-1.0.0.txt`）
+
+> 第一次触发失败根因：Wokwi 云构建 API 从 GitHub runner IP 不可用 → 改用 arduino-cli 本地编译（自包含）。

@@ -56,3 +56,6 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 node_modules/
+
+# Local tooling (arduino-cli + esp32 core, ~1GB)
+arduino-tool/
